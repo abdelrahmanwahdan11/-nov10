@@ -109,6 +109,17 @@ class AppLocalizations {
       'experience_horizons_empty':
           'Align more constellations to surface narrative bridges.',
       'experience_moment_horizon': 'Horizon bridge',
+      'experience_auroras_title': 'Aurora cascade',
+      'experience_auroras_subtitle':
+          'Blend horizons into luminous on-device story bursts.',
+      'experience_aurora_cycle': 'Cycle aurora',
+      'experience_aurora_radiance': 'Aurora radiance',
+      'experience_aurora_resonance': 'Resonance',
+      'experience_aurora_last': 'Last cascade',
+      'experience_aurora_last_never': 'Not cascaded yet',
+      'experience_auroras_empty':
+          'Activate more horizons to unlock aurora cascades.',
+      'experience_moment_aurora': 'Aurora cascade',
     },
     'ar': {
       'app_title': 'كتالوج نيو',
@@ -212,6 +223,17 @@ class AppLocalizations {
       'experience_horizons_empty':
           'نسّق المزيد من الكوكبات لإظهار جسور الحكاية.',
       'experience_moment_horizon': 'جسر الأفق',
+      'experience_auroras_title': 'تدفق الشفق',
+      'experience_auroras_subtitle':
+          'ادمج الجسور في ومضات قصصية مضيئة محلياً.',
+      'experience_aurora_cycle': 'تدوير الشفق',
+      'experience_aurora_radiance': 'سطوع الشفق',
+      'experience_aurora_resonance': 'التناغم',
+      'experience_aurora_last': 'آخر تدفق',
+      'experience_aurora_last_never': 'لم يحدث التدفق بعد',
+      'experience_auroras_empty':
+          'قم بتنشيط المزيد من الجسور لإظهار تدفقات الشفق.',
+      'experience_moment_aurora': 'تدفق الشفق',
     },
   };
 

@@ -5,6 +5,7 @@ import 'package:iconly/iconly.dart';
 
 import '../../../../app/app_scope.dart';
 import '../../../../core/controllers/experience_controller.dart';
+import '../../../../core/models/experience_aurora.dart';
 import '../../../../core/models/experience_constellation.dart';
 import '../../../../core/models/experience_horizon.dart';
 import '../../../../core/models/experience_moment.dart';
@@ -54,6 +55,8 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
           final activeConstellation = _controller.activeConstellation;
           final horizons = _controller.horizons;
           final activeHorizon = _controller.activeHorizon;
+          final auroras = _controller.auroras;
+          final activeAurora = _controller.activeAurora;
           return CustomScrollView(
             padding: const EdgeInsets.only(bottom: 96),
             slivers: [
@@ -104,6 +107,18 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
                   child: _HorizonBridge(
                     horizons: horizons,
                     activeHorizon: activeHorizon,
+                    controller: _controller,
+                    localization: localization,
+                    onSelectItem: widget.onSelectItem,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+                  child: _AuroraCascade(
+                    auroras: auroras,
+                    activeAurora: activeAurora,
                     controller: _controller,
                     localization: localization,
                     onSelectItem: widget.onSelectItem,
@@ -1094,6 +1109,281 @@ class _HorizonEmptyState extends StatelessWidget {
   }
 }
 
+class _AuroraCascade extends StatelessWidget {
+  const _AuroraCascade({
+    required this.auroras,
+    required this.activeAurora,
+    required this.controller,
+    required this.localization,
+    required this.onSelectItem,
+  });
+
+  final List<ExperienceAurora> auroras;
+  final ExperienceAurora? activeAurora;
+  final ExperienceController controller;
+  final AppLocalizations localization;
+  final ValueChanged<CatalogItem> onSelectItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    localization.translate('experience_auroras_title'),
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    localization.translate('experience_auroras_subtitle'),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.hintColor),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed:
+                  auroras.isEmpty ? null : () => controller.cycleAurora(manual: true),
+              tooltip: localization.translate('experience_aurora_cycle'),
+              icon: const Icon(IconlyLight.star),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (auroras.isEmpty)
+          _AuroraEmptyState(localization: localization)
+        else
+          SizedBox(
+            height: 220,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: auroras.length,
+              itemBuilder: (context, index) {
+                final aurora = auroras[index];
+                final isActive = activeAurora?.id == aurora.id;
+                return _AuroraCard(
+                  aurora: aurora,
+                  isActive: isActive,
+                  controller: controller,
+                  localization: localization,
+                  onSelectItem: onSelectItem,
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _AuroraCard extends StatelessWidget {
+  const _AuroraCard({
+    required this.aurora,
+    required this.isActive,
+    required this.controller,
+    required this.localization,
+    required this.onSelectItem,
+  });
+
+  final ExperienceAurora aurora;
+  final bool isActive;
+  final ExperienceController controller;
+  final AppLocalizations localization;
+  final ValueChanged<CatalogItem> onSelectItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final luminance = controller.auroraLuminance(aurora).clamp(0.0, 1.0);
+    final resonancePercent = (aurora.resonance * 100).clamp(0, 100).toDouble();
+    final items = controller.resolveAuroraItems(aurora).take(6).toList();
+    final materialLocalizations = MaterialLocalizations.of(context);
+    final mediaQuery = MediaQuery.of(context);
+    final lastGlide = aurora.lastGlide;
+    final lastLabel = lastGlide == null
+        ? localization.translate('experience_aurora_last_never')
+        : '${localization.translate('experience_aurora_last')} '
+            '${materialLocalizations.formatMediumDate(lastGlide)} · '
+            '${materialLocalizations.formatTimeOfDay(
+              TimeOfDay.fromDateTime(lastGlide),
+              alwaysUse24HourFormat: mediaQuery.alwaysUse24HourFormat,
+            )}';
+    final moodText = aurora.moodHints.isEmpty
+        ? ''
+        : aurora.moodHints.map((mood) => mood.name).join(' • ');
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
+      width: 292,
+      margin: const EdgeInsets.only(right: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          colors: isActive
+              ? [
+                  theme.colorScheme.primary.withOpacity(0.28),
+                  theme.colorScheme.secondary.withOpacity(0.2),
+                ]
+              : [
+                  theme.colorScheme.surface.withOpacity(0.7),
+                  theme.colorScheme.surfaceVariant.withOpacity(0.38),
+                ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(
+          color: theme.colorScheme.primary.withOpacity(isActive ? 0.95 : 0.28),
+          width: isActive ? 2 : 1.2,
+        ),
+        boxShadow: [
+          if (isActive)
+            BoxShadow(
+              color: theme.colorScheme.primary.withOpacity(0.2),
+              blurRadius: 22,
+              offset: const Offset(0, 18),
+            ),
+        ],
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(28),
+          onTap: () => controller.openAurora(aurora, manual: true),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            aurora.title,
+                            style: theme.textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          if (moodText.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              moodText,
+                              style: theme.textTheme.bodySmall
+                                  ?.copyWith(color: theme.hintColor),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      isActive ? IconlyBold.star : IconlyLight.star,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '${localization.translate('experience_aurora_radiance')} '
+                  '${(luminance * 100).toStringAsFixed(0)}%',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: LinearProgressIndicator(
+                    value: luminance,
+                    minHeight: 6,
+                    backgroundColor:
+                        theme.colorScheme.primary.withOpacity(0.12),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    const Icon(IconlyLight.category, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${localization.translate('experience_aurora_resonance')} '
+                      '${resonancePercent.toStringAsFixed(0)}%',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: items
+                      .map(
+                        (item) => ActionChip(
+                          label: Text(item.name),
+                          avatar: const Icon(IconlyLight.image, size: 18),
+                          onPressed: () => onSelectItem(item),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const Spacer(),
+                Text(
+                  lastLabel,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.hintColor),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AuroraEmptyState extends StatelessWidget {
+  const _AuroraEmptyState({required this.localization});
+
+  final AppLocalizations localization;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: theme.colorScheme.surface.withOpacity(0.7),
+        border: Border.all(
+          color: theme.colorScheme.primary.withOpacity(0.18),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(IconlyLight.star, size: 26),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              localization.translate('experience_auroras_empty'),
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ConstellationEmptyState extends StatelessWidget {
   const _ConstellationEmptyState({required this.localization});
 
@@ -1892,6 +2182,8 @@ class _ChronicleSection extends StatelessWidget {
         return IconlyLight.graph;
       case ExperienceMomentKind.horizon:
         return IconlyLight.category;
+      case ExperienceMomentKind.aurora:
+        return IconlyLight.star;
     }
   }
 
@@ -1911,6 +2203,8 @@ class _ChronicleSection extends StatelessWidget {
         return theme.colorScheme.secondaryContainer;
       case ExperienceMomentKind.horizon:
         return theme.colorScheme.surfaceTint;
+      case ExperienceMomentKind.aurora:
+        return theme.colorScheme.tertiaryContainer;
     }
   }
 
@@ -1930,6 +2224,8 @@ class _ChronicleSection extends StatelessWidget {
         return localization.translate('experience_moment_constellation');
       case ExperienceMomentKind.horizon:
         return localization.translate('experience_moment_horizon');
+      case ExperienceMomentKind.aurora:
+        return localization.translate('experience_moment_aurora');
     }
   }
 

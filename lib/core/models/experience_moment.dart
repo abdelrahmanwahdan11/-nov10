@@ -10,6 +10,7 @@ enum ExperienceMomentKind {
   orbit,
   constellation,
   horizon,
+  aurora,
 }
 
 class ExperienceMoment {

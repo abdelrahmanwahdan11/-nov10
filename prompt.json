@@ -204,7 +204,8 @@
             "ChronicleTimeline shows stored pulses/progress/reflection/orbit moments with bilingual labels and quick refocus shortcuts",
             "OrbitNavigator cycles resonance orbits, exposes intensity metrics, and links to synced catalog items without backend calls",
             "ConstellationDeck weaves orbit intensities into alignable constellations with energy gauges, synergy badges, and anchor chips saved in preferences",
-            "HorizonBridge presents cross-constellation narratives with intensity sweeps, coherence gauges, mood blend chips, and quick item launches stored locally"
+            "HorizonBridge presents cross-constellation narratives with intensity sweeps, coherence gauges, mood blend chips, and quick item launches stored locally",
+            "AuroraCascade synthesizes horizon bridges into luminous cascades with radiance/resonance meters, last-activation badges, and quick item chips persisted on-device"
           ]
         }
       ]
@@ -277,6 +278,7 @@
     "CatalogItem",
     "ComparisonSet",
     "ExperienceHorizon",
+    "ExperienceAurora",
     "NotificationItem",
     "OnboardingSlide"
   ],

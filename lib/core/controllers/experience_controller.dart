@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../models/experience_aurora.dart';
 import '../models/experience_blueprint.dart';
 import '../models/experience_constellation.dart';
 import '../models/experience_horizon.dart';
@@ -36,6 +37,7 @@ class ExperienceController extends ChangeNotifier {
     _scheduleOrbitCycle();
     _scheduleConstellationDrift();
     _scheduleHorizonSweep();
+    _scheduleAuroraCascade();
   }
 
   final CatalogController _catalogController;
@@ -63,6 +65,9 @@ class ExperienceController extends ChangeNotifier {
   final List<ExperienceHorizon> _horizons = <ExperienceHorizon>[];
   ExperienceHorizon? _activeHorizon;
   Timer? _horizonTimer;
+  final List<ExperienceAurora> _auroras = <ExperienceAurora>[];
+  ExperienceAurora? _activeAurora;
+  Timer? _auroraTimer;
 
   List<ExperienceBlueprint> get blueprints => List.unmodifiable(_blueprints);
   ExperienceBlueprint? get pinnedBlueprint => _pinned;
@@ -77,6 +82,8 @@ class ExperienceController extends ChangeNotifier {
   ExperienceConstellation? get activeConstellation => _activeConstellation;
   List<ExperienceHorizon> get horizons => List.unmodifiable(_horizons);
   ExperienceHorizon? get activeHorizon => _activeHorizon;
+  List<ExperienceAurora> get auroras => List.unmodifiable(_auroras);
+  ExperienceAurora? get activeAurora => _activeAurora;
 
   double blueprintProgress(ExperienceBlueprint blueprint) {
     return blueprint.progress(_getPhaseProgress);
@@ -186,12 +193,59 @@ class ExperienceController extends ChangeNotifier {
     return items;
   }
 
+  List<CatalogItem> resolveAuroraItems(ExperienceAurora aurora) {
+    final seen = <String>{};
+    final items = <CatalogItem>[];
+    for (final horizonId in aurora.horizonIds) {
+      ExperienceHorizon? horizon;
+      try {
+        horizon = _horizons.firstWhere((entry) => entry.id == horizonId);
+      } catch (_) {
+        horizon = null;
+      }
+      if (horizon == null) {
+        continue;
+      }
+      for (final itemId in horizon.passageItemIds) {
+        if (!seen.add(itemId)) {
+          continue;
+        }
+        final item = _catalogController.findById(itemId);
+        if (item != null) {
+          items.add(item);
+        }
+      }
+    }
+    for (final itemId in aurora.highlightItemIds) {
+      if (!seen.add(itemId)) {
+        continue;
+      }
+      final item = _catalogController.findById(itemId);
+      if (item != null) {
+        items.add(item);
+      }
+      if (items.length >= 10) {
+        break;
+      }
+    }
+    return items;
+  }
+
   double horizonIntensity(ExperienceHorizon horizon) {
     final constellationLookup = {
       for (final entry in _constellations) entry.id: entry
     };
     final orbitLookup = {for (final orbit in _orbits) orbit.id: orbit};
     return horizon.intensity(constellationLookup, orbitLookup);
+  }
+
+  double auroraLuminance(ExperienceAurora aurora) {
+    final horizonLookup = {for (final entry in _horizons) entry.id: entry};
+    final constellationLookup = {
+      for (final entry in _constellations) entry.id: entry
+    };
+    final orbitLookup = {for (final orbit in _orbits) orbit.id: orbit};
+    return aurora.glow(horizonLookup, constellationLookup, orbitLookup);
   }
 
   void activateOrbit(ExperienceOrbit orbit, {bool manual = true}) {
@@ -342,6 +396,8 @@ class ExperienceController extends ChangeNotifier {
       ),
     );
     _scheduleHorizonSweep();
+    _syncAuroras();
+    _scheduleAuroraCascade();
     notifyListeners();
   }
 
@@ -354,6 +410,63 @@ class ExperienceController extends ChangeNotifier {
         : _horizons.indexWhere((entry) => entry.id == _activeHorizon!.id);
     final nextIndex = (currentIndex + 1) % _horizons.length;
     openHorizon(_horizons[nextIndex], manual: manual);
+  }
+
+  void openAurora(ExperienceAurora aurora, {bool manual = true}) {
+    final index = _auroras.indexWhere((entry) => entry.id == aurora.id);
+    if (index == -1) {
+      return;
+    }
+    if (_activeAurora?.id == aurora.id && !manual) {
+      return;
+    }
+    final now = DateTime.now();
+    final highlights = _collectAuroraHighlights(aurora.horizonIds);
+    final radiance = _calculateAuroraRadiance(aurora.horizonIds);
+    final resonance = _calculateAuroraResonance(aurora.horizonIds);
+    final suggestion = _suggestAuroraBlueprint(aurora.horizonIds);
+    final updated = aurora.copyWith(
+      highlightItemIds: highlights,
+      radiance: radiance,
+      resonance: resonance,
+      lastGlide: now,
+      suggestedBlueprintId: suggestion,
+    );
+    _auroras[index] = updated;
+    _activeAurora = updated;
+    _persistAuroras();
+    unawaited(_preferences.setActiveAuroraId(updated.id));
+    final blueprintId =
+        suggestion ?? _resolveAuroraBlueprintFallback(updated);
+    final headline = manual
+        ? 'Aurora cascade • شفق متدفق'
+        : 'Aurora drift • انجراف الشفق';
+    final detail =
+        '${(updated.radiance * 100).toStringAsFixed(0)}% radiance • توهج الشفق';
+    _recordMoment(
+      ExperienceMoment(
+        id: 'aurora_${updated.id}_${now.millisecondsSinceEpoch}',
+        blueprintId: blueprintId,
+        kind: ExperienceMomentKind.aurora,
+        title: headline,
+        detail: detail,
+        timestamp: now,
+        mood: _resolveAuroraMood(updated),
+      ),
+    );
+    _scheduleAuroraCascade();
+    notifyListeners();
+  }
+
+  void cycleAurora({bool manual = false}) {
+    if (_auroras.isEmpty) {
+      return;
+    }
+    final currentIndex = _activeAurora == null
+        ? -1
+        : _auroras.indexWhere((entry) => entry.id == _activeAurora!.id);
+    final nextIndex = (currentIndex + 1) % _auroras.length;
+    openAurora(_auroras[nextIndex], manual: manual);
   }
 
   void pinBlueprint(ExperienceBlueprint blueprint) {
@@ -453,12 +566,18 @@ class ExperienceController extends ChangeNotifier {
     _activeHorizon = null;
     await _preferences.clearExperienceHorizons();
     await _preferences.setActiveHorizonId(null);
+    _auroras.clear();
+    _activeAurora = null;
+    await _preferences.clearExperienceAuroras();
+    await _preferences.setActiveAuroraId(null);
     _initializeOrbits();
     _initializeConstellations();
     _initializeHorizons();
+    _initializeAuroras();
     _scheduleOrbitCycle();
     _scheduleConstellationDrift();
     _scheduleHorizonSweep();
+    _scheduleAuroraCascade();
     _emitPulse(force: true);
     notifyListeners();
   }
@@ -509,6 +628,18 @@ class ExperienceController extends ChangeNotifier {
     _horizonTimer = Timer(const Duration(seconds: 36), () {
       cycleHorizon();
       _scheduleHorizonSweep();
+    });
+  }
+
+  void _scheduleAuroraCascade() {
+    _auroraTimer?.cancel();
+    if (_auroras.isEmpty) {
+      return;
+    }
+    final seconds = 48 + _random.nextInt(24);
+    _auroraTimer = Timer(Duration(seconds: seconds), () {
+      cycleAurora();
+      _scheduleAuroraCascade();
     });
   }
 
@@ -609,6 +740,7 @@ class ExperienceController extends ChangeNotifier {
     _initializeOrbits();
     _initializeConstellations();
     _initializeHorizons();
+    _initializeAuroras();
     _emitPulse(force: true);
   }
 
@@ -921,6 +1053,80 @@ class ExperienceController extends ChangeNotifier {
     unawaited(_preferences.setActiveHorizonId(_activeHorizon?.id));
   }
 
+  void _initializeAuroras() {
+    final stored = _preferences.getExperienceAuroras();
+    final restored = stored
+        .map(ExperienceAurora.fromEncoded)
+        .fold<Map<String, ExperienceAurora>>(
+            <String, ExperienceAurora>{}, (map, aurora) {
+      map[aurora.id] = aurora;
+      return map;
+    });
+    final defaults = <ExperienceAurora>[
+      ExperienceAurora(
+        id: 'aurora_dawn',
+        title: 'Dawn Cascade',
+        horizonIds: const ['horizon_prism', 'horizon_echo'],
+        moodHints: const [SceneMood.serene, SceneMood.vibrant],
+        highlightItemIds: const <String>[],
+      ),
+      ExperienceAurora(
+        id: 'aurora_pulse',
+        title: 'Pulse Corridor',
+        horizonIds: const ['horizon_echo', 'horizon_quantum'],
+        moodHints: const [SceneMood.vibrant, SceneMood.futuristic],
+        highlightItemIds: const <String>[],
+      ),
+      ExperienceAurora(
+        id: 'aurora_vault',
+        title: 'Lumen Vault',
+        horizonIds: const [
+          'horizon_prism',
+          'horizon_quantum',
+        ],
+        moodHints: const [SceneMood.serene, SceneMood.futuristic],
+        highlightItemIds: const <String>[],
+      ),
+    ];
+    _auroras
+      ..clear()
+      ..addAll(defaults.map((entry) {
+        final restoredEntry = restored[entry.id];
+        final highlights = _collectAuroraHighlights(entry.horizonIds);
+        final radiance = restoredEntry?.radiance ??
+            _calculateAuroraRadiance(entry.horizonIds);
+        final resonance = restoredEntry?.resonance ??
+            _calculateAuroraResonance(entry.horizonIds);
+        final suggestion = restoredEntry?.suggestedBlueprintId ??
+            _suggestAuroraBlueprint(entry.horizonIds);
+        return ExperienceAurora(
+          id: entry.id,
+          title: entry.title,
+          horizonIds: entry.horizonIds,
+          moodHints: entry.moodHints,
+          highlightItemIds: highlights,
+          radiance: radiance,
+          resonance: resonance,
+          lastGlide: restoredEntry?.lastGlide,
+          suggestedBlueprintId: suggestion,
+        );
+      }));
+    _syncAuroras(persist: false);
+    final activeId = _preferences.getActiveAuroraId();
+    if (activeId != null) {
+      try {
+        _activeAurora = _auroras.firstWhere((entry) => entry.id == activeId);
+      } catch (_) {
+        _activeAurora = null;
+      }
+    }
+    if (_activeAurora == null && _auroras.isNotEmpty) {
+      _activeAurora = _auroras.first;
+    }
+    _persistAuroras();
+    unawaited(_preferences.setActiveAuroraId(_activeAurora?.id));
+  }
+
   void _persistOrbits() {
     unawaited(
       _preferences.setExperienceOrbits(
@@ -941,6 +1147,18 @@ class ExperienceController extends ChangeNotifier {
     unawaited(
       _preferences.setExperienceHorizons(
         _horizons.map((entry) => entry.encode()).toList(),
+      ),
+    );
+  }
+
+  void _persistAuroras() {
+    if (_auroras.isEmpty) {
+      unawaited(_preferences.clearExperienceAuroras());
+      return;
+    }
+    unawaited(
+      _preferences.setExperienceAuroras(
+        _auroras.map((entry) => entry.encode()).toList(),
       ),
     );
   }
@@ -1074,6 +1292,7 @@ class ExperienceController extends ChangeNotifier {
     if (persist && changed) {
       _persistHorizons();
     }
+    _syncAuroras(persist: persist);
   }
 
   List<String> _collectAnchorItems(List<String> blueprintIds) {
@@ -1134,6 +1353,50 @@ class ExperienceController extends ChangeNotifier {
         return aFav ? -1 : 1;
       });
     return prioritized.take(8).toList();
+  }
+
+  List<String> _collectAuroraHighlights(List<String> horizonIds) {
+    final seen = <String>{};
+    final highlights = <String>[];
+    for (final horizonId in horizonIds) {
+      ExperienceHorizon? horizon;
+      try {
+        horizon = _horizons.firstWhere((entry) => entry.id == horizonId);
+      } catch (_) {
+        horizon = null;
+      }
+      if (horizon == null) {
+        continue;
+      }
+      for (final itemId in horizon.passageItemIds) {
+        if (seen.add(itemId)) {
+          highlights.add(itemId);
+        }
+        if (highlights.length >= 12) {
+          break;
+        }
+      }
+      if (highlights.length >= 12) {
+        break;
+      }
+      final blueprintId =
+          horizon.suggestedBlueprintId ?? _resolveHorizonBlueprintFallback(horizon);
+      final blueprint = findById(blueprintId);
+      if (blueprint != null) {
+        for (final itemId in blueprint.relatedItemIds) {
+          if (seen.add(itemId)) {
+            highlights.add(itemId);
+          }
+          if (highlights.length >= 12) {
+            break;
+          }
+        }
+      }
+      if (highlights.length >= 12) {
+        break;
+      }
+    }
+    return highlights.take(12).toList();
   }
 
   double _calculateConstellationSynergy(
@@ -1198,6 +1461,84 @@ class ExperienceController extends ChangeNotifier {
         ? 0
         : anchorUnion.where(favorites.contains).length / anchorUnion.length;
     return (synergyAvg * 0.5 + energyAvg * 0.35 + anchorScore * 0.15)
+        .clamp(0, 1);
+  }
+
+  double _calculateAuroraRadiance(List<String> horizonIds) {
+    if (horizonIds.isEmpty) {
+      return 0;
+    }
+    final horizons = <ExperienceHorizon>[];
+    for (final horizonId in horizonIds) {
+      try {
+        horizons.add(_horizons.firstWhere((entry) => entry.id == horizonId));
+      } catch (_) {
+        continue;
+      }
+    }
+    if (horizons.isEmpty) {
+      return 0;
+    }
+    final constellationLookup =
+        {for (final entry in _constellations) entry.id: entry};
+    final orbitLookup = {for (final orbit in _orbits) orbit.id: orbit};
+    final intensityAvg = horizons
+            .map((entry) => entry.intensity(constellationLookup, orbitLookup))
+            .fold<double>(0, (value, element) => value + element) /
+        horizons.length;
+    final coherenceAvg = horizons
+            .map((entry) => entry.coherence)
+            .fold<double>(0, (value, element) => value + element) /
+        horizons.length;
+    var recencySum = 0.0;
+    var recencyCount = 0;
+    for (final horizon in horizons) {
+      final last = horizon.lastExpanded;
+      if (last == null) {
+        continue;
+      }
+      final minutes = DateTime.now().difference(last).inMinutes;
+      final freshness = (1 - (minutes / 180).clamp(0, 1)).clamp(0, 1);
+      recencySum += freshness;
+      recencyCount++;
+    }
+    final recencyAvg = recencyCount == 0 ? 0.25 : recencySum / recencyCount;
+    return (intensityAvg * 0.55 + coherenceAvg * 0.3 + recencyAvg * 0.15)
+        .clamp(0, 1);
+  }
+
+  double _calculateAuroraResonance(List<String> horizonIds) {
+    if (horizonIds.isEmpty) {
+      return 0;
+    }
+    final horizons = <ExperienceHorizon>[];
+    for (final horizonId in horizonIds) {
+      try {
+        horizons.add(_horizons.firstWhere((entry) => entry.id == horizonId));
+      } catch (_) {
+        continue;
+      }
+    }
+    if (horizons.isEmpty) {
+      return 0;
+    }
+    final constellationLookup =
+        {for (final entry in _constellations) entry.id: entry};
+    final orbitLookup = {for (final orbit in _orbits) orbit.id: orbit};
+    final intensityAvg = horizons
+            .map((entry) => entry.intensity(constellationLookup, orbitLookup))
+            .fold<double>(0, (value, element) => value + element) /
+        horizons.length;
+    final coherenceAvg = horizons
+            .map((entry) => entry.coherence)
+            .fold<double>(0, (value, element) => value + element) /
+        horizons.length;
+    final moodSpread = horizons
+        .expand((entry) => entry.moodHints)
+        .toSet()
+        .length;
+    final spreadScore = horizons.isEmpty ? 0 : (moodSpread / 4).clamp(0, 1);
+    return (intensityAvg * 0.5 + coherenceAvg * 0.35 + spreadScore * 0.15)
         .clamp(0, 1);
   }
 
@@ -1275,6 +1616,148 @@ class ExperienceController extends ChangeNotifier {
       }
     }
     return bestId;
+  }
+
+  SceneMood _resolveAuroraMood(ExperienceAurora aurora) {
+    if (aurora.moodHints.isNotEmpty) {
+      return aurora.moodHints.first;
+    }
+    final moodCounts = <SceneMood, int>{};
+    for (final horizonId in aurora.horizonIds) {
+      ExperienceHorizon? horizon;
+      try {
+        horizon = _horizons.firstWhere((entry) => entry.id == horizonId);
+      } catch (_) {
+        horizon = null;
+      }
+      if (horizon == null) {
+        continue;
+      }
+      final hints = horizon.moodHints.isEmpty
+          ? <SceneMood>[_resolveHorizonMood(horizon)]
+          : horizon.moodHints;
+      for (final mood in hints) {
+        moodCounts[mood] = (moodCounts[mood] ?? 0) + 1;
+      }
+    }
+    if (moodCounts.isEmpty) {
+      return SceneMood.serene;
+    }
+    return moodCounts.entries
+        .reduce((a, b) => a.value >= b.value ? a : b)
+        .key;
+  }
+
+  String _resolveAuroraBlueprintFallback(ExperienceAurora aurora) {
+    for (final horizonId in aurora.horizonIds) {
+      ExperienceHorizon? horizon;
+      try {
+        horizon = _horizons.firstWhere((entry) => entry.id == horizonId);
+      } catch (_) {
+        horizon = null;
+      }
+      if (horizon == null) {
+        continue;
+      }
+      if (horizon.suggestedBlueprintId != null) {
+        return horizon.suggestedBlueprintId!;
+      }
+      return _resolveHorizonBlueprintFallback(horizon);
+    }
+    if (_blueprints.isNotEmpty) {
+      return _blueprints.first.id;
+    }
+    return 'bp_serenity';
+  }
+
+  String? _suggestAuroraBlueprint(List<String> horizonIds) {
+    final counts = <String, double>{};
+    for (final horizonId in horizonIds) {
+      ExperienceHorizon? horizon;
+      try {
+        horizon = _horizons.firstWhere((entry) => entry.id == horizonId);
+      } catch (_) {
+        horizon = null;
+      }
+      if (horizon == null) {
+        continue;
+      }
+      final suggestion = horizon.suggestedBlueprintId ??
+          _suggestHorizonBlueprint(horizon.constellationIds);
+      if (suggestion != null) {
+        counts[suggestion] = (counts[suggestion] ?? 0) + 1.2;
+      }
+      for (final constellationId in horizon.constellationIds) {
+        try {
+          final constellation =
+              _constellations.firstWhere((entry) => entry.id == constellationId);
+          for (final blueprintId in constellation.blueprintIds) {
+            counts[blueprintId] = (counts[blueprintId] ?? 0) + 0.6;
+          }
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+    if (counts.isEmpty) {
+      return null;
+    }
+    String? bestId;
+    var bestScore = -1.0;
+    counts.forEach((id, baseScore) {
+      final blueprint = findById(id);
+      if (blueprint == null) {
+        return;
+      }
+      final completion = _calculateBlueprintCompletion(blueprint);
+      final focusBonus = _activeFocus?.blueprintId == id ? 0.25 : 0;
+      final pinnedBonus = _pinned?.id == id ? 0.2 : 0;
+      final score = baseScore + completion + focusBonus + pinnedBonus;
+      if (score > bestScore) {
+        bestScore = score;
+        bestId = id;
+      }
+    });
+    return bestId;
+  }
+
+  void _syncAuroras({bool persist = true}) {
+    if (_auroras.isEmpty) {
+      return;
+    }
+    var changed = false;
+    for (var i = 0; i < _auroras.length; i++) {
+      final base = _auroras[i];
+      final highlights = _collectAuroraHighlights(base.horizonIds);
+      final radiance = _calculateAuroraRadiance(base.horizonIds);
+      final resonance = _calculateAuroraResonance(base.horizonIds);
+      final suggestion = _suggestAuroraBlueprint(base.horizonIds);
+      final highlightChanged = !_listMatches(base.highlightItemIds, highlights);
+      if (highlightChanged ||
+          (radiance - base.radiance).abs() > 0.001 ||
+          (resonance - base.resonance).abs() > 0.001 ||
+          base.suggestedBlueprintId != suggestion) {
+        final updated = ExperienceAurora(
+          id: base.id,
+          title: base.title,
+          horizonIds: base.horizonIds,
+          moodHints: base.moodHints,
+          highlightItemIds: highlights,
+          radiance: radiance,
+          resonance: resonance,
+          lastGlide: base.lastGlide,
+          suggestedBlueprintId: suggestion,
+        );
+        _auroras[i] = updated;
+        if (_activeAurora?.id == updated.id) {
+          _activeAurora = updated;
+        }
+        changed = true;
+      }
+    }
+    if (persist && changed) {
+      _persistAuroras();
+    }
   }
 
   bool _listMatches(List<String> a, List<String> b) {
@@ -1413,6 +1896,7 @@ class ExperienceController extends ChangeNotifier {
     _orbitTimer?.cancel();
     _constellationTimer?.cancel();
     _horizonTimer?.cancel();
+    _auroraTimer?.cancel();
     _catalogController.removeListener(_catalogListener);
     _showroomController.removeListener(_showroomListener);
     _signalController.close();
