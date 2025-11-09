@@ -8,6 +8,7 @@ import '../models/experience_blueprint.dart';
 import '../models/experience_constellation.dart';
 import '../models/experience_horizon.dart';
 import '../models/experience_moment.dart';
+import '../models/experience_nebula.dart';
 import '../models/experience_orbit.dart';
 import '../models/item.dart';
 import '../models/showroom_scene.dart';
@@ -38,6 +39,7 @@ class ExperienceController extends ChangeNotifier {
     _scheduleConstellationDrift();
     _scheduleHorizonSweep();
     _scheduleAuroraCascade();
+    _scheduleNebulaSurge();
   }
 
   final CatalogController _catalogController;
@@ -68,6 +70,9 @@ class ExperienceController extends ChangeNotifier {
   final List<ExperienceAurora> _auroras = <ExperienceAurora>[];
   ExperienceAurora? _activeAurora;
   Timer? _auroraTimer;
+  final List<ExperienceNebula> _nebulas = <ExperienceNebula>[];
+  ExperienceNebula? _activeNebula;
+  Timer? _nebulaTimer;
 
   List<ExperienceBlueprint> get blueprints => List.unmodifiable(_blueprints);
   ExperienceBlueprint? get pinnedBlueprint => _pinned;
@@ -84,6 +89,8 @@ class ExperienceController extends ChangeNotifier {
   ExperienceHorizon? get activeHorizon => _activeHorizon;
   List<ExperienceAurora> get auroras => List.unmodifiable(_auroras);
   ExperienceAurora? get activeAurora => _activeAurora;
+  List<ExperienceNebula> get nebulas => List.unmodifiable(_nebulas);
+  ExperienceNebula? get activeNebula => _activeNebula;
 
   double blueprintProgress(ExperienceBlueprint blueprint) {
     return blueprint.progress(_getPhaseProgress);
@@ -231,6 +238,52 @@ class ExperienceController extends ChangeNotifier {
     return items;
   }
 
+  List<CatalogItem> resolveNebulaItems(ExperienceNebula nebula) {
+    final seen = <String>{};
+    final items = <CatalogItem>[];
+    for (final itemId in nebula.pulseItemIds) {
+      if (!seen.add(itemId)) {
+        continue;
+      }
+      final item = _catalogController.findById(itemId);
+      if (item != null) {
+        items.add(item);
+      }
+      if (items.length >= 10) {
+        break;
+      }
+    }
+    if (items.length < 10) {
+      for (final auroraId in nebula.auroraIds) {
+        ExperienceAurora? aurora;
+        try {
+          aurora = _auroras.firstWhere((entry) => entry.id == auroraId);
+        } catch (_) {
+          aurora = null;
+        }
+        if (aurora == null) {
+          continue;
+        }
+        for (final itemId in aurora.highlightItemIds) {
+          if (!seen.add(itemId)) {
+            continue;
+          }
+          final item = _catalogController.findById(itemId);
+          if (item != null) {
+            items.add(item);
+          }
+          if (items.length >= 12) {
+            break;
+          }
+        }
+        if (items.length >= 12) {
+          break;
+        }
+      }
+    }
+    return items;
+  }
+
   double horizonIntensity(ExperienceHorizon horizon) {
     final constellationLookup = {
       for (final entry in _constellations) entry.id: entry
@@ -246,6 +299,21 @@ class ExperienceController extends ChangeNotifier {
     };
     final orbitLookup = {for (final orbit in _orbits) orbit.id: orbit};
     return aurora.glow(horizonLookup, constellationLookup, orbitLookup);
+  }
+
+  double nebulaClarity(ExperienceNebula nebula) {
+    final auroraLookup = {for (final entry in _auroras) entry.id: entry};
+    final horizonLookup = {for (final entry in _horizons) entry.id: entry};
+    final constellationLookup = {
+      for (final entry in _constellations) entry.id: entry
+    };
+    final orbitLookup = {for (final orbit in _orbits) orbit.id: orbit};
+    return nebula.clarity(
+      auroraLookup,
+      horizonLookup,
+      constellationLookup,
+      orbitLookup,
+    );
   }
 
   void activateOrbit(ExperienceOrbit orbit, {bool manual = true}) {
@@ -454,6 +522,7 @@ class ExperienceController extends ChangeNotifier {
         mood: _resolveAuroraMood(updated),
       ),
     );
+    _syncNebulas();
     _scheduleAuroraCascade();
     notifyListeners();
   }
@@ -467,6 +536,63 @@ class ExperienceController extends ChangeNotifier {
         : _auroras.indexWhere((entry) => entry.id == _activeAurora!.id);
     final nextIndex = (currentIndex + 1) % _auroras.length;
     openAurora(_auroras[nextIndex], manual: manual);
+  }
+
+  void openNebula(ExperienceNebula nebula, {bool manual = true}) {
+    final index = _nebulas.indexWhere((entry) => entry.id == nebula.id);
+    if (index == -1) {
+      return;
+    }
+    if (_activeNebula?.id == nebula.id && !manual) {
+      return;
+    }
+    final now = DateTime.now();
+    final pulseItems = _collectNebulaPulseItems(nebula.auroraIds);
+    final luminosity = _calculateNebulaLuminosity(nebula.auroraIds);
+    final cohesion = _calculateNebulaCohesion(nebula.auroraIds);
+    final suggestion = _suggestNebulaBlueprint(nebula.auroraIds);
+    final updated = nebula.copyWith(
+      pulseItemIds: pulseItems,
+      luminosity: luminosity,
+      cohesion: cohesion,
+      lastSurge: now,
+      spotlightBlueprintId: suggestion ?? nebula.spotlightBlueprintId,
+    );
+    _nebulas[index] = updated;
+    _activeNebula = updated;
+    _persistNebulas();
+    unawaited(_preferences.setActiveNebulaId(updated.id));
+    final blueprintId =
+        updated.spotlightBlueprintId ?? _resolveNebulaBlueprintFallback(updated);
+    final headline = manual
+        ? 'Nebula surge • اندفاع السديم'
+        : 'Nebula drift • انجراف السديم';
+    final detail =
+        '${(updated.luminosity * 100).toStringAsFixed(0)}% luminosity • ${(updated.cohesion * 100).toStringAsFixed(0)}% cohesion';
+    _recordMoment(
+      ExperienceMoment(
+        id: 'nebula_${updated.id}_${now.millisecondsSinceEpoch}',
+        blueprintId: blueprintId,
+        kind: ExperienceMomentKind.nebula,
+        title: headline,
+        detail: detail,
+        timestamp: now,
+        mood: _resolveNebulaMood(updated),
+      ),
+    );
+    _scheduleNebulaSurge();
+    notifyListeners();
+  }
+
+  void cycleNebula({bool manual = false}) {
+    if (_nebulas.isEmpty) {
+      return;
+    }
+    final currentIndex = _activeNebula == null
+        ? -1
+        : _nebulas.indexWhere((entry) => entry.id == _activeNebula!.id);
+    final nextIndex = (currentIndex + 1) % _nebulas.length;
+    openNebula(_nebulas[nextIndex], manual: manual);
   }
 
   void pinBlueprint(ExperienceBlueprint blueprint) {
@@ -570,14 +696,20 @@ class ExperienceController extends ChangeNotifier {
     _activeAurora = null;
     await _preferences.clearExperienceAuroras();
     await _preferences.setActiveAuroraId(null);
+    _nebulas.clear();
+    _activeNebula = null;
+    await _preferences.clearExperienceNebulas();
+    await _preferences.setActiveNebulaId(null);
     _initializeOrbits();
     _initializeConstellations();
     _initializeHorizons();
     _initializeAuroras();
+    _initializeNebulas();
     _scheduleOrbitCycle();
     _scheduleConstellationDrift();
     _scheduleHorizonSweep();
     _scheduleAuroraCascade();
+    _scheduleNebulaSurge();
     _emitPulse(force: true);
     notifyListeners();
   }
@@ -640,6 +772,18 @@ class ExperienceController extends ChangeNotifier {
     _auroraTimer = Timer(Duration(seconds: seconds), () {
       cycleAurora();
       _scheduleAuroraCascade();
+    });
+  }
+
+  void _scheduleNebulaSurge() {
+    _nebulaTimer?.cancel();
+    if (_nebulas.isEmpty) {
+      return;
+    }
+    final seconds = 62 + _random.nextInt(36);
+    _nebulaTimer = Timer(Duration(seconds: seconds), () {
+      cycleNebula();
+      _scheduleNebulaSurge();
     });
   }
 
@@ -741,6 +885,7 @@ class ExperienceController extends ChangeNotifier {
     _initializeConstellations();
     _initializeHorizons();
     _initializeAuroras();
+    _initializeNebulas();
     _emitPulse(force: true);
   }
 
@@ -1127,6 +1272,79 @@ class ExperienceController extends ChangeNotifier {
     unawaited(_preferences.setActiveAuroraId(_activeAurora?.id));
   }
 
+  void _initializeNebulas() {
+    final stored = _preferences.getExperienceNebulas();
+    final restored = stored
+        .map(ExperienceNebula.fromEncoded)
+        .fold<Map<String, ExperienceNebula>>(
+            <String, ExperienceNebula>{}, (map, nebula) {
+      map[nebula.id] = nebula;
+      return map;
+    });
+    final defaults = <ExperienceNebula>[
+      ExperienceNebula(
+        id: 'nebula_chronicle',
+        title: 'Chronicle Veil',
+        auroraIds: const ['aurora_dawn', 'aurora_pulse'],
+        pulseItemIds: const <String>[],
+        spectrumHints: const [SceneMood.serene, SceneMood.vibrant],
+      ),
+      ExperienceNebula(
+        id: 'nebula_resonance',
+        title: 'Resonance Loom',
+        auroraIds: const ['aurora_pulse', 'aurora_vault'],
+        pulseItemIds: const <String>[],
+        spectrumHints: const [SceneMood.vibrant, SceneMood.futuristic],
+      ),
+      ExperienceNebula(
+        id: 'nebula_horizon',
+        title: 'Horizon Chorus',
+        auroraIds: const ['aurora_dawn', 'aurora_vault'],
+        pulseItemIds: const <String>[],
+        spectrumHints: const [SceneMood.serene, SceneMood.futuristic],
+      ),
+    ];
+    _nebulas
+      ..clear()
+      ..addAll(defaults.map((entry) {
+        final restoredEntry = restored[entry.id];
+        final pulseItems = restoredEntry?.pulseItemIds.isNotEmpty == true
+            ? restoredEntry!.pulseItemIds
+            : _collectNebulaPulseItems(entry.auroraIds);
+        final luminosity = restoredEntry?.luminosity ??
+            _calculateNebulaLuminosity(entry.auroraIds);
+        final cohesion = restoredEntry?.cohesion ??
+            _calculateNebulaCohesion(entry.auroraIds);
+        final spotlight = restoredEntry?.spotlightBlueprintId ??
+            _suggestNebulaBlueprint(entry.auroraIds);
+        return ExperienceNebula(
+          id: entry.id,
+          title: entry.title,
+          auroraIds: entry.auroraIds,
+          pulseItemIds: pulseItems,
+          spectrumHints: entry.spectrumHints,
+          luminosity: luminosity,
+          cohesion: cohesion,
+          lastSurge: restoredEntry?.lastSurge,
+          spotlightBlueprintId: spotlight,
+        );
+      }));
+    _syncNebulas(persist: false);
+    final activeId = _preferences.getActiveNebulaId();
+    if (activeId != null) {
+      try {
+        _activeNebula = _nebulas.firstWhere((entry) => entry.id == activeId);
+      } catch (_) {
+        _activeNebula = null;
+      }
+    }
+    if (_activeNebula == null && _nebulas.isNotEmpty) {
+      _activeNebula = _nebulas.first;
+    }
+    _persistNebulas();
+    unawaited(_preferences.setActiveNebulaId(_activeNebula?.id));
+  }
+
   void _persistOrbits() {
     unawaited(
       _preferences.setExperienceOrbits(
@@ -1159,6 +1377,18 @@ class ExperienceController extends ChangeNotifier {
     unawaited(
       _preferences.setExperienceAuroras(
         _auroras.map((entry) => entry.encode()).toList(),
+      ),
+    );
+  }
+
+  void _persistNebulas() {
+    if (_nebulas.isEmpty) {
+      unawaited(_preferences.clearExperienceNebulas());
+      return;
+    }
+    unawaited(
+      _preferences.setExperienceNebulas(
+        _nebulas.map((entry) => entry.encode()).toList(),
       ),
     );
   }
@@ -1397,6 +1627,258 @@ class ExperienceController extends ChangeNotifier {
       }
     }
     return highlights.take(12).toList();
+  }
+
+  List<String> _collectNebulaPulseItems(List<String> auroraIds) {
+    final seen = <String>{};
+    final items = <String>[];
+    for (final auroraId in auroraIds) {
+      ExperienceAurora? aurora;
+      try {
+        aurora = _auroras.firstWhere((entry) => entry.id == auroraId);
+      } catch (_) {
+        aurora = null;
+      }
+      if (aurora == null) {
+        continue;
+      }
+      final highlights = _collectAuroraHighlights(aurora.horizonIds);
+      for (final itemId in highlights) {
+        if (seen.add(itemId)) {
+          items.add(itemId);
+        }
+        if (items.length >= 14) {
+          break;
+        }
+      }
+      if (items.length >= 14) {
+        break;
+      }
+      if (aurora.suggestedBlueprintId != null) {
+        final blueprint = findById(aurora.suggestedBlueprintId!);
+        if (blueprint != null) {
+          for (final itemId in blueprint.relatedItemIds) {
+            if (seen.add(itemId)) {
+              items.add(itemId);
+            }
+            if (items.length >= 14) {
+              break;
+            }
+          }
+        }
+      }
+    }
+    if (items.length < 8 && _pinned != null) {
+      for (final itemId in _pinned!.relatedItemIds) {
+        if (seen.add(itemId)) {
+          items.add(itemId);
+        }
+        if (items.length >= 14) {
+          break;
+        }
+      }
+    }
+    if (items.length < 8 && _activeConstellation != null) {
+      for (final itemId in _activeConstellation!.anchorItemIds) {
+        if (seen.add(itemId)) {
+          items.add(itemId);
+        }
+        if (items.length >= 14) {
+          break;
+        }
+      }
+    }
+    return items.take(14).toList();
+  }
+
+  double _calculateNebulaLuminosity(List<String> auroraIds) {
+    if (auroraIds.isEmpty) {
+      return 0;
+    }
+    final radianceScores = <double>[];
+    final intensityScores = <double>[];
+    for (final auroraId in auroraIds) {
+      ExperienceAurora? aurora;
+      try {
+        aurora = _auroras.firstWhere((entry) => entry.id == auroraId);
+      } catch (_) {
+        aurora = null;
+      }
+      if (aurora == null) {
+        continue;
+      }
+      radianceScores.add(aurora.radiance * 0.6 + aurora.resonance * 0.4);
+      for (final horizonId in aurora.horizonIds) {
+        ExperienceHorizon? horizon;
+        try {
+          horizon = _horizons.firstWhere((entry) => entry.id == horizonId);
+        } catch (_) {
+          horizon = null;
+        }
+        if (horizon == null) {
+          continue;
+        }
+        intensityScores.add(horizonIntensity(horizon));
+      }
+    }
+    final radianceAverage = radianceScores.isEmpty
+        ? 0
+        : radianceScores.reduce((value, element) => value + element) /
+            radianceScores.length;
+    final intensityAverage = intensityScores.isEmpty
+        ? 0
+        : intensityScores.reduce((value, element) => value + element) /
+            intensityScores.length;
+    return (radianceAverage * 0.65 + intensityAverage * 0.35).clamp(0, 1);
+  }
+
+  double _calculateNebulaCohesion(List<String> auroraIds) {
+    if (auroraIds.isEmpty) {
+      return 0;
+    }
+    final horizonIds = <String>{};
+    final blueprintIds = <String>{};
+    final moods = <SceneMood>{};
+    for (final auroraId in auroraIds) {
+      ExperienceAurora? aurora;
+      try {
+        aurora = _auroras.firstWhere((entry) => entry.id == auroraId);
+      } catch (_) {
+        aurora = null;
+      }
+      if (aurora == null) {
+        continue;
+      }
+      horizonIds.addAll(aurora.horizonIds);
+      if (aurora.suggestedBlueprintId != null) {
+        blueprintIds.add(aurora.suggestedBlueprintId!);
+      }
+      moods.addAll(aurora.moodHints);
+    }
+    final horizonScore = _horizons.isEmpty
+        ? 0
+        : (horizonIds.length / _horizons.length).clamp(0, 1);
+    final completionScores = blueprintIds
+        .map(findById)
+        .whereType<ExperienceBlueprint>()
+        .map(_calculateBlueprintCompletion)
+        .toList();
+    final completionScore = completionScores.isEmpty
+        ? 0
+        : completionScores.reduce((value, element) => value + element) /
+            completionScores.length;
+    final moodScore = moods.isEmpty ? 0 : (moods.length / 4).clamp(0, 1);
+    return (horizonScore * 0.4 + completionScore * 0.4 + moodScore * 0.2)
+        .clamp(0, 1);
+  }
+
+  SceneMood _resolveNebulaMood(ExperienceNebula nebula) {
+    if (nebula.spectrumHints.isNotEmpty) {
+      return nebula.spectrumHints.first;
+    }
+    final moodCounts = <SceneMood, int>{};
+    for (final auroraId in nebula.auroraIds) {
+      ExperienceAurora? aurora;
+      try {
+        aurora = _auroras.firstWhere((entry) => entry.id == auroraId);
+      } catch (_) {
+        aurora = null;
+      }
+      if (aurora == null) {
+        continue;
+      }
+      for (final mood in aurora.moodHints) {
+        moodCounts[mood] = (moodCounts[mood] ?? 0) + 1;
+      }
+    }
+    if (moodCounts.isEmpty) {
+      return SceneMood.serene;
+    }
+    return moodCounts.entries
+        .reduce((a, b) => a.value >= b.value ? a : b)
+        .key;
+  }
+
+  String _resolveNebulaBlueprintFallback(ExperienceNebula nebula) {
+    for (final auroraId in nebula.auroraIds) {
+      try {
+        final aurora = _auroras.firstWhere((entry) => entry.id == auroraId);
+        if (aurora.suggestedBlueprintId != null) {
+          return aurora.suggestedBlueprintId!;
+        }
+      } catch (_) {
+        continue;
+      }
+    }
+    if (_pinned != null) {
+      return _pinned!.id;
+    }
+    if (_activeConstellation != null &&
+        _activeConstellation!.blueprintIds.isNotEmpty) {
+      return _activeConstellation!.blueprintIds.first;
+    }
+    if (_blueprints.isNotEmpty) {
+      return _blueprints.first.id;
+    }
+    return 'bp_serenity';
+  }
+
+  String? _suggestNebulaBlueprint(List<String> auroraIds) {
+    final candidateIds = <String>{};
+    for (final auroraId in auroraIds) {
+      ExperienceAurora? aurora;
+      try {
+        aurora = _auroras.firstWhere((entry) => entry.id == auroraId);
+      } catch (_) {
+        aurora = null;
+      }
+      if (aurora == null) {
+        continue;
+      }
+      if (aurora.suggestedBlueprintId != null) {
+        candidateIds.add(aurora.suggestedBlueprintId!);
+      }
+      for (final horizonId in aurora.horizonIds) {
+        ExperienceHorizon? horizon;
+        try {
+          horizon = _horizons.firstWhere((entry) => entry.id == horizonId);
+        } catch (_) {
+          horizon = null;
+        }
+        if (horizon?.suggestedBlueprintId != null) {
+          candidateIds.add(horizon!.suggestedBlueprintId!);
+        }
+      }
+    }
+    if (_pinned != null) {
+      candidateIds.add(_pinned!.id);
+    }
+    if (candidateIds.isEmpty) {
+      return null;
+    }
+    String? bestId;
+    var bestScore = -1.0;
+    final favorites = _catalogController.favoriteIds;
+    for (final blueprintId in candidateIds) {
+      final blueprint = findById(blueprintId);
+      if (blueprint == null) {
+        continue;
+      }
+      final completion = _calculateBlueprintCompletion(blueprint);
+      final focusBonus = _activeFocus?.blueprintId == blueprintId ? 0.18 : 0;
+      final pinnedBonus = _pinned?.id == blueprintId ? 0.12 : 0;
+      final favoriteBonus = blueprint.relatedItemIds
+              .where((itemId) => favorites.contains(itemId))
+              .isNotEmpty
+          ? 0.1
+          : 0;
+      final score = completion + focusBonus + pinnedBonus + favoriteBonus;
+      if (score > bestScore) {
+        bestScore = score;
+        bestId = blueprintId;
+      }
+    }
+    return bestId;
   }
 
   double _calculateConstellationSynergy(
@@ -1721,6 +2203,46 @@ class ExperienceController extends ChangeNotifier {
     return bestId;
   }
 
+  void _syncNebulas({bool persist = true}) {
+    if (_nebulas.isEmpty) {
+      return;
+    }
+    var changed = false;
+    for (var i = 0; i < _nebulas.length; i++) {
+      final base = _nebulas[i];
+      final pulseItems = _collectNebulaPulseItems(base.auroraIds);
+      final luminosity = _calculateNebulaLuminosity(base.auroraIds);
+      final cohesion = _calculateNebulaCohesion(base.auroraIds);
+      final suggestion = _suggestNebulaBlueprint(base.auroraIds);
+      final pulseChanged = !_listMatches(base.pulseItemIds, pulseItems);
+      final suggestionChanged = base.spotlightBlueprintId != suggestion;
+      if (pulseChanged ||
+          (luminosity - base.luminosity).abs() > 0.001 ||
+          (cohesion - base.cohesion).abs() > 0.001 ||
+          suggestionChanged) {
+        final updated = ExperienceNebula(
+          id: base.id,
+          title: base.title,
+          auroraIds: base.auroraIds,
+          pulseItemIds: pulseItems,
+          spectrumHints: base.spectrumHints,
+          luminosity: luminosity,
+          cohesion: cohesion,
+          lastSurge: base.lastSurge,
+          spotlightBlueprintId: suggestion ?? base.spotlightBlueprintId,
+        );
+        _nebulas[i] = updated;
+        if (_activeNebula?.id == updated.id) {
+          _activeNebula = updated;
+        }
+        changed = true;
+      }
+    }
+    if (persist && changed) {
+      _persistNebulas();
+    }
+  }
+
   void _syncAuroras({bool persist = true}) {
     if (_auroras.isEmpty) {
       return;
@@ -1758,6 +2280,7 @@ class ExperienceController extends ChangeNotifier {
     if (persist && changed) {
       _persistAuroras();
     }
+    _syncNebulas(persist: persist);
   }
 
   bool _listMatches(List<String> a, List<String> b) {
@@ -1897,6 +2420,7 @@ class ExperienceController extends ChangeNotifier {
     _constellationTimer?.cancel();
     _horizonTimer?.cancel();
     _auroraTimer?.cancel();
+    _nebulaTimer?.cancel();
     _catalogController.removeListener(_catalogListener);
     _showroomController.removeListener(_showroomListener);
     _signalController.close();

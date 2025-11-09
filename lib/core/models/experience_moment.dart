@@ -11,6 +11,7 @@ enum ExperienceMomentKind {
   constellation,
   horizon,
   aurora,
+  nebula,
 }
 
 class ExperienceMoment {

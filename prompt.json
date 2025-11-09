@@ -205,7 +205,8 @@
             "OrbitNavigator cycles resonance orbits, exposes intensity metrics, and links to synced catalog items without backend calls",
             "ConstellationDeck weaves orbit intensities into alignable constellations with energy gauges, synergy badges, and anchor chips saved in preferences",
             "HorizonBridge presents cross-constellation narratives with intensity sweeps, coherence gauges, mood blend chips, and quick item launches stored locally",
-            "AuroraCascade synthesizes horizon bridges into luminous cascades with radiance/resonance meters, last-activation badges, and quick item chips persisted on-device"
+            "AuroraCascade synthesizes horizon bridges into luminous cascades with radiance/resonance meters, last-activation badges, and quick item chips persisted on-device",
+            "NebulaSymphony elevates aurora cascades into clarity/cohesion decks with spotlight blueprint, surge logging, and clickable item mosaics persisted locally"
           ]
         }
       ]
@@ -279,6 +280,7 @@
     "ComparisonSet",
     "ExperienceHorizon",
     "ExperienceAurora",
+    "ExperienceNebula",
     "NotificationItem",
     "OnboardingSlide"
   ],

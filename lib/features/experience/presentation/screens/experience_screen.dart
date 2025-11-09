@@ -9,6 +9,7 @@ import '../../../../core/models/experience_aurora.dart';
 import '../../../../core/models/experience_constellation.dart';
 import '../../../../core/models/experience_horizon.dart';
 import '../../../../core/models/experience_moment.dart';
+import '../../../../core/models/experience_nebula.dart';
 import '../../../../core/models/experience_blueprint.dart';
 import '../../../../core/models/experience_orbit.dart';
 import '../../../../core/models/item.dart';
@@ -57,6 +58,8 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
           final activeHorizon = _controller.activeHorizon;
           final auroras = _controller.auroras;
           final activeAurora = _controller.activeAurora;
+          final nebulas = _controller.nebulas;
+          final activeNebula = _controller.activeNebula;
           return CustomScrollView(
             padding: const EdgeInsets.only(bottom: 96),
             slivers: [
@@ -119,6 +122,18 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
                   child: _AuroraCascade(
                     auroras: auroras,
                     activeAurora: activeAurora,
+                    controller: _controller,
+                    localization: localization,
+                    onSelectItem: widget.onSelectItem,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+                  child: _NebulaSymphony(
+                    nebulas: nebulas,
+                    activeNebula: activeNebula,
                     controller: _controller,
                     localization: localization,
                     onSelectItem: widget.onSelectItem,
@@ -1384,6 +1399,340 @@ class _AuroraEmptyState extends StatelessWidget {
   }
 }
 
+class _NebulaSymphony extends StatelessWidget {
+  const _NebulaSymphony({
+    required this.nebulas,
+    required this.activeNebula,
+    required this.controller,
+    required this.localization,
+    required this.onSelectItem,
+  });
+
+  final List<ExperienceNebula> nebulas;
+  final ExperienceNebula? activeNebula;
+  final ExperienceController controller;
+  final AppLocalizations localization;
+  final ValueChanged<CatalogItem> onSelectItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    localization.translate('experience_nebulas_title'),
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    localization.translate('experience_nebulas_subtitle'),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.hintColor),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed:
+                  nebulas.isEmpty ? null : () => controller.cycleNebula(manual: true),
+              tooltip: localization.translate('experience_nebula_cycle'),
+              icon: const Icon(IconlyLight.sun),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (nebulas.isEmpty)
+          _NebulaEmptyState(localization: localization)
+        else
+          SizedBox(
+            height: 236,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: nebulas.length,
+              itemBuilder: (context, index) {
+                final nebula = nebulas[index];
+                final isActive = activeNebula?.id == nebula.id;
+                return _NebulaCard(
+                  nebula: nebula,
+                  isActive: isActive,
+                  controller: controller,
+                  localization: localization,
+                  onSelectItem: onSelectItem,
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _NebulaCard extends StatelessWidget {
+  const _NebulaCard({
+    required this.nebula,
+    required this.isActive,
+    required this.controller,
+    required this.localization,
+    required this.onSelectItem,
+  });
+
+  final ExperienceNebula nebula;
+  final bool isActive;
+  final ExperienceController controller;
+  final AppLocalizations localization;
+  final ValueChanged<CatalogItem> onSelectItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final clarity = controller.nebulaClarity(nebula).clamp(0.0, 1.0);
+    final luminosityPercent = (nebula.luminosity * 100).clamp(0, 100).toDouble();
+    final cohesionPercent = (nebula.cohesion * 100).clamp(0, 100).toDouble();
+    final items = controller.resolveNebulaItems(nebula).take(8).toList();
+    final blueprint = nebula.spotlightBlueprintId == null
+        ? null
+        : controller.findById(nebula.spotlightBlueprintId!);
+    final materialLocalizations = MaterialLocalizations.of(context);
+    final mediaQuery = MediaQuery.of(context);
+    final lastSurge = nebula.lastSurge;
+    final lastLabel = lastSurge == null
+        ? localization.translate('experience_nebula_last_never')
+        : '${localization.translate('experience_nebula_last')} '
+            '${materialLocalizations.formatMediumDate(lastSurge)} · '
+            '${materialLocalizations.formatTimeOfDay(
+              TimeOfDay.fromDateTime(lastSurge),
+              alwaysUse24HourFormat: mediaQuery.alwaysUse24HourFormat,
+            )}';
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
+      width: 300,
+      margin: const EdgeInsets.only(right: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          colors: isActive
+              ? [
+                  theme.colorScheme.secondary.withOpacity(0.28),
+                  theme.colorScheme.tertiary.withOpacity(0.24),
+                ]
+              : [
+                  theme.colorScheme.surface.withOpacity(0.66),
+                  theme.colorScheme.surfaceVariant.withOpacity(0.34),
+                ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(
+          color: theme.colorScheme.secondary.withOpacity(isActive ? 0.9 : 0.24),
+          width: isActive ? 2 : 1.1,
+        ),
+        boxShadow: [
+          if (isActive)
+            BoxShadow(
+              color: theme.colorScheme.secondary.withOpacity(0.18),
+              blurRadius: 20,
+              offset: const Offset(0, 16),
+            ),
+        ],
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(28),
+          onTap: () => controller.openNebula(nebula, manual: true),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            nebula.title,
+                            style: theme.textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          if (nebula.spectrumHints.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              nebula.spectrumHints
+                                  .map((mood) => mood.name)
+                                  .join(' • '),
+                              style: theme.textTheme.bodySmall
+                                  ?.copyWith(color: theme.hintColor),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      isActive ? IconlyBold.sun : IconlyLight.sun,
+                      color: theme.colorScheme.secondary,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '${localization.translate('experience_nebula_luminosity')} '
+                  '${luminosityPercent.toStringAsFixed(0)}%',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: LinearProgressIndicator(
+                    value: nebula.luminosity.clamp(0.0, 1.0),
+                    minHeight: 6,
+                    backgroundColor:
+                        theme.colorScheme.secondary.withOpacity(0.15),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '${localization.translate('experience_nebula_cohesion')} '
+                  '${cohesionPercent.toStringAsFixed(0)}%',
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: LinearProgressIndicator(
+                    value: nebula.cohesion.clamp(0.0, 1.0),
+                    minHeight: 6,
+                    backgroundColor:
+                        theme.colorScheme.tertiary.withOpacity(0.14),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      theme.colorScheme.tertiary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(IconlyLight.activity, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${localization.translate('experience_nebula_clarity')} '
+                      '${(clarity * 100).toStringAsFixed(0)}%',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (blueprint != null) ...[
+                  Text(
+                    localization.translate('experience_nebula_spotlight'),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    blueprint.title,
+                    style: theme.textTheme.bodyMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: items
+                      .map(
+                        (item) => GestureDetector(
+                          onTap: () => onSelectItem(item),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(14),
+                                child: Image.network(
+                                  item.imageUrl,
+                                  width: 48,
+                                  height: 48,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              SizedBox(
+                                width: 64,
+                                child: Text(
+                                  item.name,
+                                  style: theme.textTheme.labelSmall,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const Spacer(),
+                Text(
+                  lastLabel,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.hintColor),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NebulaEmptyState extends StatelessWidget {
+  const _NebulaEmptyState({required this.localization});
+
+  final AppLocalizations localization;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
+        border: Border.all(
+          color: theme.colorScheme.secondary.withOpacity(0.2),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(IconlyLight.discovery, size: 26),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              localization.translate('experience_nebulas_empty'),
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ConstellationEmptyState extends StatelessWidget {
   const _ConstellationEmptyState({required this.localization});
 
@@ -2184,6 +2533,8 @@ class _ChronicleSection extends StatelessWidget {
         return IconlyLight.category;
       case ExperienceMomentKind.aurora:
         return IconlyLight.star;
+      case ExperienceMomentKind.nebula:
+        return IconlyLight.sun;
     }
   }
 
@@ -2205,6 +2556,8 @@ class _ChronicleSection extends StatelessWidget {
         return theme.colorScheme.surfaceTint;
       case ExperienceMomentKind.aurora:
         return theme.colorScheme.tertiaryContainer;
+      case ExperienceMomentKind.nebula:
+        return theme.colorScheme.secondary;
     }
   }
 
@@ -2226,6 +2579,8 @@ class _ChronicleSection extends StatelessWidget {
         return localization.translate('experience_moment_horizon');
       case ExperienceMomentKind.aurora:
         return localization.translate('experience_moment_aurora');
+      case ExperienceMomentKind.nebula:
+        return localization.translate('experience_moment_nebula');
     }
   }
 

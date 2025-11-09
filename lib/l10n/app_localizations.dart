@@ -120,6 +120,19 @@ class AppLocalizations {
       'experience_auroras_empty':
           'Activate more horizons to unlock aurora cascades.',
       'experience_moment_aurora': 'Aurora cascade',
+      'experience_nebulas_title': 'Nebula symphony',
+      'experience_nebulas_subtitle':
+          'Bind cascades into story veils with clarity and cohesion meters.',
+      'experience_nebula_cycle': 'Cycle nebula',
+      'experience_nebula_luminosity': 'Nebula luminosity',
+      'experience_nebula_cohesion': 'Cohesion',
+      'experience_nebula_clarity': 'Clarity',
+      'experience_nebula_last': 'Last surge',
+      'experience_nebula_last_never': 'Not surged yet',
+      'experience_nebulas_empty':
+          'Ignite more aurora cascades to unlock nebula symphonies.',
+      'experience_nebula_spotlight': 'Spotlight blueprint',
+      'experience_moment_nebula': 'Nebula surge',
     },
     'ar': {
       'app_title': 'كتالوج نيو',
@@ -234,6 +247,19 @@ class AppLocalizations {
       'experience_auroras_empty':
           'قم بتنشيط المزيد من الجسور لإظهار تدفقات الشفق.',
       'experience_moment_aurora': 'تدفق الشفق',
+      'experience_nebulas_title': 'سمفونية السديم',
+      'experience_nebulas_subtitle':
+          'اربط تدفقات الشفق في ستائر قصصية مع مقاييس الوضوح والتماسك.',
+      'experience_nebula_cycle': 'تدوير السديم',
+      'experience_nebula_luminosity': 'سطوع السديم',
+      'experience_nebula_cohesion': 'التماسك',
+      'experience_nebula_clarity': 'الوضوح',
+      'experience_nebula_last': 'آخر اندفاع',
+      'experience_nebula_last_never': 'لم يحدث الاندفاع بعد',
+      'experience_nebulas_empty':
+          'فعّل المزيد من تدفقات الشفق لفتح سمفونيات السديم.',
+      'experience_nebula_spotlight': 'المخطط المضاء',
+      'experience_moment_nebula': 'اندفاع السديم',
     },
   };
 
