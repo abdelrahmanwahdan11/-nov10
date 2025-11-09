@@ -12,6 +12,7 @@ import '../../../../core/models/experience_moment.dart';
 import '../../../../core/models/experience_nebula.dart';
 import '../../../../core/models/experience_nova.dart';
 import '../../../../core/models/experience_quasar.dart';
+import '../../../../core/models/experience_singularity.dart';
 import '../../../../core/models/experience_blueprint.dart';
 import '../../../../core/models/experience_orbit.dart';
 import '../../../../core/models/item.dart';
@@ -66,6 +67,8 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
           final activeNova = _controller.activeNova;
           final quasars = _controller.quasars;
           final activeQuasar = _controller.activeQuasar;
+          final singularities = _controller.singularities;
+          final activeSingularity = _controller.activeSingularity;
           return CustomScrollView(
             padding: const EdgeInsets.only(bottom: 96),
             slivers: [
@@ -164,6 +167,18 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
                   child: _QuasarObservatory(
                     quasars: quasars,
                     activeQuasar: activeQuasar,
+                    controller: _controller,
+                    localization: localization,
+                    onSelectItem: widget.onSelectItem,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+                  child: _SingularityNexus(
+                    singularities: singularities,
+                    activeSingularity: activeSingularity,
                     controller: _controller,
                     localization: localization,
                     onSelectItem: widget.onSelectItem,
@@ -2410,6 +2425,327 @@ class _QuasarEmptyState extends StatelessWidget {
   }
 }
 
+class _SingularityNexus extends StatelessWidget {
+  const _SingularityNexus({
+    required this.singularities,
+    required this.activeSingularity,
+    required this.controller,
+    required this.localization,
+    required this.onSelectItem,
+  });
+
+  final List<ExperienceSingularity> singularities;
+  final ExperienceSingularity? activeSingularity;
+  final ExperienceController controller;
+  final AppLocalizations localization;
+  final ValueChanged<CatalogItem> onSelectItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    localization.translate('experience_singularities_title'),
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    localization.translate('experience_singularities_subtitle'),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.hintColor),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: singularities.isEmpty
+                  ? null
+                  : () => controller.cycleSingularity(manual: true),
+              tooltip: localization.translate('experience_singularity_cycle'),
+              icon: const Icon(IconlyLight.category),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (singularities.isEmpty)
+          _SingularityEmptyState(localization: localization)
+        else
+          SizedBox(
+            height: 276,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: singularities.length,
+              itemBuilder: (context, index) {
+                final singularity = singularities[index];
+                final isActive = activeSingularity?.id == singularity.id;
+                return _SingularityCard(
+                  singularity: singularity,
+                  isActive: isActive,
+                  controller: controller,
+                  localization: localization,
+                  onSelectItem: onSelectItem,
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _SingularityCard extends StatelessWidget {
+  const _SingularityCard({
+    required this.singularity,
+    required this.isActive,
+    required this.controller,
+    required this.localization,
+    required this.onSelectItem,
+  });
+
+  final ExperienceSingularity singularity;
+  final bool isActive;
+  final ExperienceController controller;
+  final AppLocalizations localization;
+  final ValueChanged<CatalogItem> onSelectItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final gravityPercent = (singularity.gravity * 100).clamp(0, 100).toDouble();
+    final convergencePercent =
+        (singularity.convergence * 100).clamp(0, 100).toDouble();
+    final equilibriumPercent =
+        (singularity.equilibrium * 100).clamp(0, 100).toDouble();
+    final items = controller.resolveSingularityItems(singularity);
+    ExperienceQuasar? featuredQuasar;
+    if (singularity.featuredQuasarId != null) {
+      try {
+        featuredQuasar = controller.quasars
+            .firstWhere((entry) => entry.id == singularity.featuredQuasarId);
+      } catch (_) {
+        featuredQuasar = null;
+      }
+    }
+    final materialLocalizations = MaterialLocalizations.of(context);
+    final mediaQuery = MediaQuery.of(context);
+    final lastCollapse = singularity.lastCollapse;
+    final lastLabel = lastCollapse == null
+        ? localization.translate('experience_singularity_last_never')
+        : '${localization.translate('experience_singularity_last')} '
+            '${materialLocalizations.formatMediumDate(lastCollapse)} · '
+            '${materialLocalizations.formatTimeOfDay(
+              TimeOfDay.fromDateTime(lastCollapse),
+              alwaysUse24HourFormat: mediaQuery.alwaysUse24HourFormat,
+            )}';
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 360),
+      width: 324,
+      margin: const EdgeInsets.only(right: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: isActive
+              ? theme.colorScheme.primary
+              : theme.dividerColor.withOpacity(0.35),
+        ),
+        gradient: LinearGradient(
+          colors: isActive
+              ? [
+                  theme.colorScheme.primary.withOpacity(0.2),
+                  theme.colorScheme.tertiary.withOpacity(0.14),
+                ]
+              : [
+                  theme.colorScheme.surfaceVariant.withOpacity(0.1),
+                  theme.colorScheme.surfaceVariant.withOpacity(0.05),
+                ],
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(28),
+        onTap: () => controller.openSingularity(singularity, manual: true),
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          singularity.title,
+                          style: theme.textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        if (featuredQuasar != null)
+                          Text(
+                            featuredQuasar!.title,
+                            style: theme.textTheme.bodySmall
+                                ?.copyWith(color: theme.hintColor),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    isActive ? IconlyBold.shield_done : IconlyLight.shield_done,
+                    color: theme.colorScheme.primary,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '${localization.translate('experience_singularity_gravity')} '
+                '${gravityPercent.toStringAsFixed(0)}%',
+                style:
+                    theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: LinearProgressIndicator(
+                  value: singularity.gravity.clamp(0.0, 1.0),
+                  minHeight: 6,
+                  backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '${localization.translate('experience_singularity_convergence')} '
+                '${convergencePercent.toStringAsFixed(0)}%',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: LinearProgressIndicator(
+                  value: singularity.convergence.clamp(0.0, 1.0),
+                  minHeight: 6,
+                  backgroundColor:
+                      theme.colorScheme.secondary.withOpacity(0.18),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    theme.colorScheme.secondary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(IconlyLight.activity, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${localization.translate('experience_singularity_equilibrium')} '
+                    '${equilibriumPercent.toStringAsFixed(0)}%',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: items
+                        .take(12)
+                        .map(
+                          (item) => GestureDetector(
+                            onTap: () => onSelectItem(item),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: Image.network(
+                                    item.imageUrl,
+                                    width: 48,
+                                    height: 48,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                SizedBox(
+                                  width: 64,
+                                  child: Text(
+                                    item.name,
+                                    style: theme.textTheme.labelSmall,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                lastLabel,
+                style:
+                    theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SingularityEmptyState extends StatelessWidget {
+  const _SingularityEmptyState({required this.localization});
+
+  final AppLocalizations localization;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: theme.dividerColor.withOpacity(0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            localization.translate('experience_singularities_title'),
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            localization.translate('experience_singularities_empty'),
+            style: theme.textTheme.bodyMedium?.copyWith(color: theme.hintColor),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ConstellationEmptyState extends StatelessWidget {
   const _ConstellationEmptyState({required this.localization});
 
@@ -3243,6 +3579,8 @@ class _ChronicleSection extends StatelessWidget {
         return theme.colorScheme.primary;
       case ExperienceMomentKind.quasar:
         return theme.colorScheme.tertiary;
+      case ExperienceMomentKind.singularity:
+        return theme.colorScheme.inversePrimary;
     }
   }
 
@@ -3270,6 +3608,8 @@ class _ChronicleSection extends StatelessWidget {
         return localization.translate('experience_moment_nova');
       case ExperienceMomentKind.quasar:
         return localization.translate('experience_moment_quasar');
+      case ExperienceMomentKind.singularity:
+        return localization.translate('experience_moment_singularity');
     }
   }
 

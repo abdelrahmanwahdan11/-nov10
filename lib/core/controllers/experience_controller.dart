@@ -12,6 +12,7 @@ import '../models/experience_nebula.dart';
 import '../models/experience_nova.dart';
 import '../models/experience_orbit.dart';
 import '../models/experience_quasar.dart';
+import '../models/experience_singularity.dart';
 import '../models/item.dart';
 import '../models/showroom_scene.dart';
 import '../services/app_preferences.dart';
@@ -44,6 +45,7 @@ class ExperienceController extends ChangeNotifier {
     _scheduleNebulaSurge();
     _scheduleNovaBurst();
     _scheduleQuasarBeacon();
+    _scheduleSingularityCollapse();
   }
 
   final CatalogController _catalogController;
@@ -83,6 +85,10 @@ class ExperienceController extends ChangeNotifier {
   final List<ExperienceQuasar> _quasars = <ExperienceQuasar>[];
   ExperienceQuasar? _activeQuasar;
   Timer? _quasarTimer;
+  final List<ExperienceSingularity> _singularities =
+      <ExperienceSingularity>[];
+  ExperienceSingularity? _activeSingularity;
+  Timer? _singularityTimer;
 
   List<ExperienceBlueprint> get blueprints => List.unmodifiable(_blueprints);
   ExperienceBlueprint? get pinnedBlueprint => _pinned;
@@ -105,6 +111,9 @@ class ExperienceController extends ChangeNotifier {
   ExperienceNova? get activeNova => _activeNova;
   List<ExperienceQuasar> get quasars => List.unmodifiable(_quasars);
   ExperienceQuasar? get activeQuasar => _activeQuasar;
+  List<ExperienceSingularity> get singularities =>
+      List.unmodifiable(_singularities);
+  ExperienceSingularity? get activeSingularity => _activeSingularity;
 
   double blueprintProgress(ExperienceBlueprint blueprint) {
     return blueprint.progress(_getPhaseProgress);
@@ -377,6 +386,65 @@ class ExperienceController extends ChangeNotifier {
           }
         }
         if (items.length >= 14) {
+          break;
+        }
+      }
+    }
+    return items;
+  }
+
+  List<CatalogItem> resolveSingularityItems(
+    ExperienceSingularity singularity,
+  ) {
+    final seen = <String>{};
+    final items = <CatalogItem>[];
+    for (final itemId in singularity.coreItemIds) {
+      if (!seen.add(itemId)) {
+        continue;
+      }
+      final item = _catalogController.findById(itemId);
+      if (item != null) {
+        items.add(item);
+      }
+      if (items.length >= 14) {
+        break;
+      }
+    }
+    if (items.length < 14) {
+      for (final quasarId in singularity.quasarIds) {
+        ExperienceQuasar? quasar;
+        try {
+          quasar = _quasars.firstWhere((entry) => entry.id == quasarId);
+        } catch (_) {
+          quasar = null;
+        }
+        if (quasar == null) {
+          continue;
+        }
+        for (final item in resolveQuasarItems(quasar)) {
+          if (!seen.add(item.id)) {
+            continue;
+          }
+          items.add(item);
+          if (items.length >= 18) {
+            break;
+          }
+        }
+        if (items.length >= 18) {
+          break;
+        }
+      }
+    }
+    if (items.length < 12 && _pinned != null) {
+      for (final itemId in _pinned!.relatedItemIds) {
+        if (!seen.add(itemId)) {
+          continue;
+        }
+        final item = _catalogController.findById(itemId);
+        if (item != null) {
+          items.add(item);
+        }
+        if (items.length >= 18) {
           break;
         }
       }
@@ -813,6 +881,7 @@ class ExperienceController extends ChangeNotifier {
       ),
     );
     _scheduleQuasarBeacon();
+    _syncSingularities();
     notifyListeners();
   }
 
@@ -825,6 +894,73 @@ class ExperienceController extends ChangeNotifier {
         : _quasars.indexWhere((entry) => entry.id == _activeQuasar!.id);
     final nextIndex = (currentIndex + 1) % _quasars.length;
     openQuasar(_quasars[nextIndex], manual: manual);
+  }
+
+  void openSingularity(
+    ExperienceSingularity singularity, {
+    bool manual = true,
+  }) {
+    final index =
+        _singularities.indexWhere((entry) => entry.id == singularity.id);
+    if (index == -1) {
+      return;
+    }
+    if (_activeSingularity?.id == singularity.id && !manual) {
+      return;
+    }
+    final now = DateTime.now();
+    final coreItems = _collectSingularityCoreItems(singularity.quasarIds);
+    final gravity = _calculateSingularityGravity(singularity.quasarIds);
+    final convergence =
+        _calculateSingularityConvergence(singularity.quasarIds);
+    final equilibrium =
+        _calculateSingularityEquilibrium(singularity.quasarIds);
+    final featured = _suggestSingularityQuasar(singularity.quasarIds);
+    final updated = singularity.copyWith(
+      coreItemIds: coreItems,
+      gravity: gravity,
+      convergence: convergence,
+      equilibrium: equilibrium,
+      lastCollapse: now,
+      featuredQuasarId: featured ?? singularity.featuredQuasarId,
+    );
+    _singularities[index] = updated;
+    _activeSingularity = updated;
+    _persistSingularities();
+    unawaited(_preferences.setActiveSingularityId(updated.id));
+    final blueprintId = _resolveSingularityBlueprintId(updated);
+    final headline = manual
+        ? 'Singularity collapse • طي التفرد'
+        : 'Singularity drift • انجراف التفرد';
+    final detail =
+        '${(updated.gravity * 100).toStringAsFixed(0)}% gravity • '
+        '${(updated.convergence * 100).toStringAsFixed(0)}% convergence • '
+        '${(updated.equilibrium * 100).toStringAsFixed(0)}% equilibrium';
+    _recordMoment(
+      ExperienceMoment(
+        id: 'singularity_${updated.id}_${now.millisecondsSinceEpoch}',
+        blueprintId: blueprintId,
+        kind: ExperienceMomentKind.singularity,
+        title: headline,
+        detail: detail,
+        timestamp: now,
+        mood: _resolveSingularityMood(updated),
+      ),
+    );
+    _scheduleSingularityCollapse();
+    notifyListeners();
+  }
+
+  void cycleSingularity({bool manual = false}) {
+    if (_singularities.isEmpty) {
+      return;
+    }
+    final currentIndex = _activeSingularity == null
+        ? -1
+        : _singularities
+            .indexWhere((entry) => entry.id == _activeSingularity!.id);
+    final nextIndex = (currentIndex + 1) % _singularities.length;
+    openSingularity(_singularities[nextIndex], manual: manual);
   }
 
   void pinBlueprint(ExperienceBlueprint blueprint) {
@@ -940,6 +1076,10 @@ class ExperienceController extends ChangeNotifier {
     _activeQuasar = null;
     await _preferences.clearExperienceQuasars();
     await _preferences.setActiveQuasarId(null);
+    _singularities.clear();
+    _activeSingularity = null;
+    await _preferences.clearExperienceSingularities();
+    await _preferences.setActiveSingularityId(null);
     _initializeOrbits();
     _initializeConstellations();
     _initializeHorizons();
@@ -947,6 +1087,7 @@ class ExperienceController extends ChangeNotifier {
     _initializeNebulas();
     _initializeNovas();
     _initializeQuasars();
+    _initializeSingularities();
     _scheduleOrbitCycle();
     _scheduleConstellationDrift();
     _scheduleHorizonSweep();
@@ -954,6 +1095,7 @@ class ExperienceController extends ChangeNotifier {
     _scheduleNebulaSurge();
     _scheduleNovaBurst();
     _scheduleQuasarBeacon();
+    _scheduleSingularityCollapse();
     _emitPulse(force: true);
     notifyListeners();
   }
@@ -1052,6 +1194,18 @@ class ExperienceController extends ChangeNotifier {
     _quasarTimer = Timer(Duration(seconds: seconds), () {
       cycleQuasar();
       _scheduleQuasarBeacon();
+    });
+  }
+
+  void _scheduleSingularityCollapse() {
+    _singularityTimer?.cancel();
+    if (_singularities.isEmpty) {
+      return;
+    }
+    final seconds = 164 + _random.nextInt(72);
+    _singularityTimer = Timer(Duration(seconds: seconds), () {
+      cycleSingularity();
+      _scheduleSingularityCollapse();
     });
   }
 
@@ -1156,6 +1310,7 @@ class ExperienceController extends ChangeNotifier {
     _initializeNebulas();
     _initializeNovas();
     _initializeQuasars();
+    _initializeSingularities();
     _emitPulse(force: true);
   }
 
@@ -1745,6 +1900,79 @@ class ExperienceController extends ChangeNotifier {
     unawaited(_preferences.setActiveQuasarId(_activeQuasar?.id));
   }
 
+  void _initializeSingularities() {
+    final stored = _preferences.getExperienceSingularities();
+    final restored = stored
+        .map(ExperienceSingularity.fromEncoded)
+        .fold<Map<String, ExperienceSingularity>>(
+            <String, ExperienceSingularity>{}, (map, singularity) {
+      map[singularity.id] = singularity;
+      return map;
+    });
+    final defaults = <ExperienceSingularity>[
+      ExperienceSingularity(
+        id: 'singularity_nexus',
+        title: 'Singularity Nexus',
+        quasarIds: const ['quasar_observatory', 'quasar_resonance'],
+        coreItemIds: const <String>[],
+        anomalyHints: const [SceneMood.futuristic, SceneMood.serene],
+      ),
+      ExperienceSingularity(
+        id: 'singularity_core',
+        title: 'Eventide Core',
+        quasarIds: const ['quasar_resonance'],
+        coreItemIds: const <String>[],
+        anomalyHints: const [SceneMood.vibrant, SceneMood.earthy],
+      ),
+    ];
+    _singularities
+      ..clear()
+      ..addAll(defaults.map((entry) {
+        final restoredEntry = restored[entry.id];
+        final cores = restoredEntry?.coreItemIds.isNotEmpty == true
+            ? restoredEntry!.coreItemIds
+            : _collectSingularityCoreItems(entry.quasarIds);
+        final gravity = restoredEntry?.gravity ??
+            _calculateSingularityGravity(entry.quasarIds);
+        final convergence = restoredEntry?.convergence ??
+            _calculateSingularityConvergence(entry.quasarIds);
+        final equilibrium = restoredEntry?.equilibrium ??
+            _calculateSingularityEquilibrium(entry.quasarIds);
+        final featured = restoredEntry?.featuredQuasarId ??
+            _suggestSingularityQuasar(entry.quasarIds);
+        return ExperienceSingularity(
+          id: entry.id,
+          title: entry.title,
+          quasarIds: entry.quasarIds,
+          coreItemIds: cores,
+          anomalyHints: entry.anomalyHints,
+          gravity: gravity,
+          convergence: convergence,
+          equilibrium: equilibrium,
+          lastCollapse: restoredEntry?.lastCollapse,
+          featuredQuasarId: featured,
+        );
+      }));
+    _syncSingularities(persist: false);
+    final activeId = _preferences.getActiveSingularityId();
+    if (activeId != null) {
+      try {
+        _activeSingularity =
+            _singularities.firstWhere((entry) => entry.id == activeId);
+      } catch (_) {
+        _activeSingularity = null;
+      }
+    }
+    if (_activeSingularity == null && _singularities.isNotEmpty) {
+      _activeSingularity = _singularities.first;
+    }
+    _persistSingularities();
+    unawaited(
+      _preferences.setActiveSingularityId(_activeSingularity?.id),
+    );
+    _scheduleSingularityCollapse();
+  }
+
   void _persistOrbits() {
     unawaited(
       _preferences.setExperienceOrbits(
@@ -1813,6 +2041,18 @@ class ExperienceController extends ChangeNotifier {
     unawaited(
       _preferences.setExperienceQuasars(
         _quasars.map((entry) => entry.encode()).toList(),
+      ),
+    );
+  }
+
+  void _persistSingularities() {
+    if (_singularities.isEmpty) {
+      unawaited(_preferences.clearExperienceSingularities());
+      return;
+    }
+    unawaited(
+      _preferences.setExperienceSingularities(
+        _singularities.map((entry) => entry.encode()).toList(),
       ),
     );
   }
@@ -2629,6 +2869,316 @@ class ExperienceController extends ChangeNotifier {
     }
   }
 
+  List<String> _collectSingularityCoreItems(List<String> quasarIds) {
+    final seen = <String>{};
+    final items = <String>[];
+    for (final quasarId in quasarIds) {
+      ExperienceQuasar? quasar;
+      try {
+        quasar = _quasars.firstWhere((entry) => entry.id == quasarId);
+      } catch (_) {
+        quasar = null;
+      }
+      if (quasar == null) {
+        continue;
+      }
+      for (final itemId in quasar.beaconItemIds) {
+        if (seen.add(itemId)) {
+          items.add(itemId);
+        }
+        if (items.length >= 18) {
+          break;
+        }
+      }
+      if (items.length >= 18) {
+        break;
+      }
+      for (final novaId in quasar.novaIds) {
+        ExperienceNova? nova;
+        try {
+          nova = _novas.firstWhere((entry) => entry.id == novaId);
+        } catch (_) {
+          nova = null;
+        }
+        if (nova == null) {
+          continue;
+        }
+        for (final itemId in nova.catalystItemIds) {
+          if (seen.add(itemId)) {
+            items.add(itemId);
+          }
+          if (items.length >= 20) {
+            break;
+          }
+        }
+        if (items.length >= 20) {
+          break;
+        }
+      }
+      if (items.length >= 20) {
+        break;
+      }
+    }
+    if (items.length < 12 && _activeConstellation != null) {
+      for (final item in resolveConstellationItems(_activeConstellation!)) {
+        if (seen.add(item.id)) {
+          items.add(item.id);
+        }
+        if (items.length >= 20) {
+          break;
+        }
+      }
+    }
+    if (items.length < 12 && _activeOrbit != null) {
+      for (final item in resolveOrbitItems(_activeOrbit!)) {
+        if (seen.add(item.id)) {
+          items.add(item.id);
+        }
+        if (items.length >= 20) {
+          break;
+        }
+      }
+    }
+    if (items.length < 12 && _pinned != null) {
+      for (final itemId in _pinned!.relatedItemIds) {
+        if (seen.add(itemId)) {
+          items.add(itemId);
+        }
+        if (items.length >= 20) {
+          break;
+        }
+      }
+    }
+    return items.take(20).toList();
+  }
+
+  double _calculateSingularityGravity(List<String> quasarIds) {
+    if (quasarIds.isEmpty) {
+      return 0;
+    }
+    final values = <double>[];
+    for (final quasarId in quasarIds) {
+      ExperienceQuasar? quasar;
+      try {
+        quasar = _quasars.firstWhere((entry) => entry.id == quasarId);
+      } catch (_) {
+        quasar = null;
+      }
+      if (quasar == null) {
+        continue;
+      }
+      final flare =
+          quasar.flare == 0 ? _calculateQuasarFlare(quasar.novaIds) : quasar.flare;
+      final flux =
+          quasar.flux == 0 ? _calculateQuasarFlux(quasar.novaIds) : quasar.flux;
+      values.add((flare * 0.55 + flux * 0.45).clamp(0, 1));
+    }
+    if (values.isEmpty) {
+      return 0;
+    }
+    final average =
+        values.reduce((value, element) => value + element) / values.length;
+    return average.clamp(0, 1);
+  }
+
+  double _calculateSingularityConvergence(List<String> quasarIds) {
+    if (quasarIds.isEmpty) {
+      return 0;
+    }
+    final intensityValues = <double>[];
+    final stabilityValues = <double>[];
+    final nebulaIds = <String>{};
+    final auroraIds = <String>{};
+    for (final quasarId in quasarIds) {
+      ExperienceQuasar? quasar;
+      try {
+        quasar = _quasars.firstWhere((entry) => entry.id == quasarId);
+      } catch (_) {
+        quasar = null;
+      }
+      if (quasar == null) {
+        continue;
+      }
+      for (final novaId in quasar.novaIds) {
+        ExperienceNova? nova;
+        try {
+          nova = _novas.firstWhere((entry) => entry.id == novaId);
+        } catch (_) {
+          nova = null;
+        }
+        if (nova == null) {
+          continue;
+        }
+        final intensity =
+            nova.intensity == 0 ? _calculateNovaIntensity(nova.nebulaIds) : nova.intensity;
+        final stability =
+            nova.stability == 0 ? _calculateNovaStability(nova.nebulaIds) : nova.stability;
+        intensityValues.add(intensity);
+        stabilityValues.add(stability);
+        nebulaIds.addAll(nova.nebulaIds);
+        for (final nebulaId in nova.nebulaIds) {
+          ExperienceNebula? nebula;
+          try {
+            nebula = _nebulas.firstWhere((entry) => entry.id == nebulaId);
+          } catch (_) {
+            nebula = null;
+          }
+          if (nebula == null) {
+            continue;
+          }
+          auroraIds.addAll(nebula.auroraIds);
+        }
+      }
+    }
+    final intensityAverage = intensityValues.isEmpty
+        ? 0
+        : intensityValues.reduce((value, element) => value + element) /
+            intensityValues.length;
+    final stabilityAverage = stabilityValues.isEmpty
+        ? 0
+        : stabilityValues.reduce((value, element) => value + element) /
+            stabilityValues.length;
+    final nebulaScore = _nebulas.isEmpty
+        ? 0
+        : (nebulaIds.length / _nebulas.length).clamp(0, 1);
+    final auroraScore = _auroras.isEmpty
+        ? 0
+        : (auroraIds.length / _auroras.length).clamp(0, 1);
+    return (intensityAverage * 0.35 +
+            stabilityAverage * 0.35 +
+            nebulaScore * 0.2 +
+            auroraScore * 0.1)
+        .clamp(0, 1);
+  }
+
+  double _calculateSingularityEquilibrium(List<String> quasarIds) {
+    if (quasarIds.isEmpty) {
+      return 0;
+    }
+    final gravity = _calculateSingularityGravity(quasarIds);
+    final convergence = _calculateSingularityConvergence(quasarIds);
+    final moods = <SceneMood>{};
+    final blueprintScores = <double>[];
+    for (final quasarId in quasarIds) {
+      ExperienceQuasar? quasar;
+      try {
+        quasar = _quasars.firstWhere((entry) => entry.id == quasarId);
+      } catch (_) {
+        quasar = null;
+      }
+      if (quasar == null) {
+        continue;
+      }
+      moods.addAll(quasar.prismHints);
+      for (final novaId in quasar.novaIds) {
+        ExperienceNova? nova;
+        try {
+          nova = _novas.firstWhere((entry) => entry.id == novaId);
+        } catch (_) {
+          nova = null;
+        }
+        if (nova == null) {
+          continue;
+        }
+        for (final nebulaId in nova.nebulaIds) {
+          ExperienceNebula? nebula;
+          try {
+            nebula = _nebulas.firstWhere((entry) => entry.id == nebulaId);
+          } catch (_) {
+            nebula = null;
+          }
+          if (nebula == null) {
+            continue;
+          }
+          if (nebula.spotlightBlueprintId != null) {
+            final blueprint = findById(nebula.spotlightBlueprintId!);
+            if (blueprint != null) {
+              blueprintScores.add(_calculateBlueprintCompletion(blueprint));
+            }
+          }
+        }
+      }
+    }
+    final moodScore = moods.isEmpty ? 0 : (moods.length / 4).clamp(0, 1);
+    final completionScore = blueprintScores.isEmpty
+        ? 0
+        : blueprintScores.reduce((value, element) => value + element) /
+            blueprintScores.length;
+    return (gravity * 0.35 +
+            convergence * 0.35 +
+            moodScore * 0.15 +
+            completionScore * 0.15)
+        .clamp(0, 1);
+  }
+
+  SceneMood _resolveSingularityMood(ExperienceSingularity singularity) {
+    final featuredId = singularity.featuredQuasarId ??
+        (singularity.quasarIds.isNotEmpty ? singularity.quasarIds.first : null);
+    if (featuredId != null) {
+      try {
+        final quasar = _quasars.firstWhere((entry) => entry.id == featuredId);
+        return _resolveQuasarMood(quasar);
+      } catch (_) {
+        // ignore and fallback to hints
+      }
+    }
+    return singularity.anomalyHints.isNotEmpty
+        ? singularity.anomalyHints.first
+        : SceneMood.serene;
+  }
+
+  String _resolveSingularityBlueprintId(ExperienceSingularity singularity) {
+    final fallback =
+        _pinned?.id ?? (_blueprints.isNotEmpty ? _blueprints.first.id : 'bp_serenity');
+    final featuredId = singularity.featuredQuasarId ??
+        (singularity.quasarIds.isNotEmpty ? singularity.quasarIds.first : null);
+    if (featuredId == null) {
+      return fallback;
+    }
+    try {
+      final quasar = _quasars.firstWhere((entry) => entry.id == featuredId);
+      return _resolveQuasarBlueprintId(quasar);
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  String? _suggestSingularityQuasar(List<String> quasarIds) {
+    String? bestId;
+    var bestScore = -1.0;
+    final now = DateTime.now();
+    for (final quasarId in quasarIds) {
+      ExperienceQuasar? quasar;
+      try {
+        quasar = _quasars.firstWhere((entry) => entry.id == quasarId);
+      } catch (_) {
+        quasar = null;
+      }
+      if (quasar == null) {
+        continue;
+      }
+      final flare =
+          quasar.flare == 0 ? _calculateQuasarFlare(quasar.novaIds) : quasar.flare;
+      final steadiness = quasar.steadiness == 0
+          ? _calculateQuasarSteadiness(quasar.novaIds)
+          : quasar.steadiness;
+      final flux =
+          quasar.flux == 0 ? _calculateQuasarFlux(quasar.novaIds) : quasar.flux;
+      final recency = quasar.lastBeacon == null
+          ? 0.2
+          : (1 - (now.difference(quasar.lastBeacon!).inMinutes / 360)
+                  .clamp(0, 1)) *
+              0.3;
+      final score = (flare * 0.35 + steadiness * 0.25 + flux * 0.2 + recency)
+          .clamp(0, 1);
+      if (score > bestScore) {
+        bestScore = score;
+        bestId = quasar.id;
+      }
+    }
+    return bestId;
+  }
+
   String? _suggestNovaNebula(List<String> nebulaIds) {
     String? bestId;
     var bestScore = -1.0;
@@ -3069,6 +3619,7 @@ class ExperienceController extends ChangeNotifier {
         _persistQuasars();
         unawaited(_preferences.setActiveQuasarId(null));
       }
+      _syncSingularities(persist: persist);
       return;
     }
     var changed = false;
@@ -3111,6 +3662,64 @@ class ExperienceController extends ChangeNotifier {
     }
     if (changed) {
       _scheduleQuasarBeacon();
+    }
+    _syncSingularities(persist: persist);
+  }
+
+  void _syncSingularities({bool persist = true}) {
+    if (_singularities.isEmpty) {
+      if (persist) {
+        _persistSingularities();
+        unawaited(_preferences.setActiveSingularityId(null));
+      }
+      return;
+    }
+    var changed = false;
+    for (var i = 0; i < _singularities.length; i++) {
+      final base = _singularities[i];
+      final coreItems = _collectSingularityCoreItems(base.quasarIds);
+      final gravity = _calculateSingularityGravity(base.quasarIds);
+      final convergence =
+          _calculateSingularityConvergence(base.quasarIds);
+      final equilibrium =
+          _calculateSingularityEquilibrium(base.quasarIds);
+      final suggestion = base.featuredQuasarId ??
+          _suggestSingularityQuasar(base.quasarIds);
+      final itemsChanged = !_listMatches(base.coreItemIds, coreItems);
+      final featuredChanged =
+          suggestion != null && suggestion != base.featuredQuasarId;
+      if (itemsChanged ||
+          (gravity - base.gravity).abs() > 0.001 ||
+          (convergence - base.convergence).abs() > 0.001 ||
+          (equilibrium - base.equilibrium).abs() > 0.001 ||
+          featuredChanged) {
+        final updated = ExperienceSingularity(
+          id: base.id,
+          title: base.title,
+          quasarIds: base.quasarIds,
+          coreItemIds: coreItems,
+          anomalyHints: base.anomalyHints,
+          gravity: gravity,
+          convergence: convergence,
+          equilibrium: equilibrium,
+          lastCollapse: base.lastCollapse,
+          featuredQuasarId: suggestion ?? base.featuredQuasarId,
+        );
+        _singularities[i] = updated;
+        if (_activeSingularity?.id == updated.id) {
+          _activeSingularity = updated;
+        }
+        changed = true;
+      }
+    }
+    if (persist && changed) {
+      _persistSingularities();
+      unawaited(
+        _preferences.setActiveSingularityId(_activeSingularity?.id),
+      );
+    }
+    if (changed) {
+      _scheduleSingularityCollapse();
     }
   }
 
@@ -3294,6 +3903,7 @@ class ExperienceController extends ChangeNotifier {
     _nebulaTimer?.cancel();
     _novaTimer?.cancel();
     _quasarTimer?.cancel();
+    _singularityTimer?.cancel();
     _catalogController.removeListener(_catalogListener);
     _showroomController.removeListener(_showroomListener);
     _signalController.close();

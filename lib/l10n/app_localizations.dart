@@ -157,6 +157,18 @@ class AppLocalizations {
       'experience_quasars_empty':
           'Trigger more nova ignitions to unlock quasar observatories.',
       'experience_moment_quasar': 'Quasar beacon',
+      'experience_singularities_title': 'Singularity nexus',
+      'experience_singularities_subtitle':
+          'Collapse quasar beacons into locally fused singularity cores.',
+      'experience_singularity_cycle': 'Collapse singularity',
+      'experience_singularity_gravity': 'Gravity',
+      'experience_singularity_convergence': 'Convergence',
+      'experience_singularity_equilibrium': 'Equilibrium',
+      'experience_singularity_last': 'Last collapse',
+      'experience_singularity_last_never': 'No collapse yet',
+      'experience_singularities_empty':
+          'Illuminate additional quasar beacons to unlock singularity cores.',
+      'experience_moment_singularity': 'Singularity collapse',
     },
     'ar': {
       'app_title': 'كتالوج نيو',
@@ -308,6 +320,18 @@ class AppLocalizations {
       'experience_quasars_empty':
           'أشعل المزيد من محترفات النوفا لفتح مراقبة الكوازار.',
       'experience_moment_quasar': 'منارة كوازار',
+      'experience_singularities_title': 'شبكة التفرد',
+      'experience_singularities_subtitle':
+          'ادمج منارات الكوازار في نوى تفرد محلية متزامنة.',
+      'experience_singularity_cycle': 'طي التفرد',
+      'experience_singularity_gravity': 'الجاذبية',
+      'experience_singularity_convergence': 'الالتحام',
+      'experience_singularity_equilibrium': 'الاتزان',
+      'experience_singularity_last': 'آخر طي',
+      'experience_singularity_last_never': 'لم يحدث أي طي بعد',
+      'experience_singularities_empty':
+          'قم بتنشيط منارات كوازار إضافية لفتح نوى التفرد.',
+      'experience_moment_singularity': 'طي التفرد',
     },
   };
 

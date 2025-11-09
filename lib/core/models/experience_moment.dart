@@ -14,6 +14,7 @@ enum ExperienceMomentKind {
   nebula,
   nova,
   quasar,
+  singularity,
 }
 
 class ExperienceMoment {
