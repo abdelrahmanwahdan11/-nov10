@@ -11,6 +11,7 @@ import '../models/experience_moment.dart';
 import '../models/experience_nebula.dart';
 import '../models/experience_nova.dart';
 import '../models/experience_orbit.dart';
+import '../models/experience_quasar.dart';
 import '../models/item.dart';
 import '../models/showroom_scene.dart';
 import '../services/app_preferences.dart';
@@ -42,6 +43,7 @@ class ExperienceController extends ChangeNotifier {
     _scheduleAuroraCascade();
     _scheduleNebulaSurge();
     _scheduleNovaBurst();
+    _scheduleQuasarBeacon();
   }
 
   final CatalogController _catalogController;
@@ -78,6 +80,9 @@ class ExperienceController extends ChangeNotifier {
   final List<ExperienceNova> _novas = <ExperienceNova>[];
   ExperienceNova? _activeNova;
   Timer? _novaTimer;
+  final List<ExperienceQuasar> _quasars = <ExperienceQuasar>[];
+  ExperienceQuasar? _activeQuasar;
+  Timer? _quasarTimer;
 
   List<ExperienceBlueprint> get blueprints => List.unmodifiable(_blueprints);
   ExperienceBlueprint? get pinnedBlueprint => _pinned;
@@ -98,6 +103,8 @@ class ExperienceController extends ChangeNotifier {
   ExperienceNebula? get activeNebula => _activeNebula;
   List<ExperienceNova> get novas => List.unmodifiable(_novas);
   ExperienceNova? get activeNova => _activeNova;
+  List<ExperienceQuasar> get quasars => List.unmodifiable(_quasars);
+  ExperienceQuasar? get activeQuasar => _activeQuasar;
 
   double blueprintProgress(ExperienceBlueprint blueprint) {
     return blueprint.progress(_getPhaseProgress);
@@ -318,6 +325,49 @@ class ExperienceController extends ChangeNotifier {
           continue;
         }
         for (final item in resolveNebulaItems(nebula)) {
+          if (!seen.add(item.id)) {
+            continue;
+          }
+          items.add(item);
+          if (items.length >= 14) {
+            break;
+          }
+        }
+        if (items.length >= 14) {
+          break;
+        }
+      }
+    }
+    return items;
+  }
+
+  List<CatalogItem> resolveQuasarItems(ExperienceQuasar quasar) {
+    final seen = <String>{};
+    final items = <CatalogItem>[];
+    for (final itemId in quasar.beaconItemIds) {
+      if (!seen.add(itemId)) {
+        continue;
+      }
+      final item = _catalogController.findById(itemId);
+      if (item != null) {
+        items.add(item);
+      }
+      if (items.length >= 12) {
+        break;
+      }
+    }
+    if (items.length < 12) {
+      for (final novaId in quasar.novaIds) {
+        ExperienceNova? nova;
+        try {
+          nova = _novas.firstWhere((entry) => entry.id == novaId);
+        } catch (_) {
+          nova = null;
+        }
+        if (nova == null) {
+          continue;
+        }
+        for (final item in resolveNovaItems(nova)) {
           if (!seen.add(item.id)) {
             continue;
           }
@@ -704,6 +754,7 @@ class ExperienceController extends ChangeNotifier {
         mood: _resolveNovaMood(updated),
       ),
     );
+    _syncQuasars();
     _scheduleNovaBurst();
     notifyListeners();
   }
@@ -716,6 +767,64 @@ class ExperienceController extends ChangeNotifier {
         _activeNova == null ? -1 : _novas.indexWhere((entry) => entry.id == _activeNova!.id);
     final nextIndex = (currentIndex + 1) % _novas.length;
     openNova(_novas[nextIndex], manual: manual);
+  }
+
+  void openQuasar(ExperienceQuasar quasar, {bool manual = true}) {
+    final index = _quasars.indexWhere((entry) => entry.id == quasar.id);
+    if (index == -1) {
+      return;
+    }
+    if (_activeQuasar?.id == quasar.id && !manual) {
+      return;
+    }
+    final now = DateTime.now();
+    final beacons = _collectQuasarBeaconItems(quasar.novaIds);
+    final flare = _calculateQuasarFlare(quasar.novaIds);
+    final steadiness = _calculateQuasarSteadiness(quasar.novaIds);
+    final flux = _calculateQuasarFlux(quasar.novaIds);
+    final featured = _suggestQuasarNova(quasar.novaIds);
+    final updated = quasar.copyWith(
+      beaconItemIds: beacons,
+      flare: flare,
+      steadiness: steadiness,
+      flux: flux,
+      lastBeacon: now,
+      featuredNovaId: featured ?? quasar.featuredNovaId,
+    );
+    _quasars[index] = updated;
+    _activeQuasar = updated;
+    _persistQuasars();
+    unawaited(_preferences.setActiveQuasarId(updated.id));
+    final blueprintId = _resolveQuasarBlueprintId(updated);
+    final headline = manual
+        ? 'Quasar beacon • منارة الكوازار'
+        : 'Quasar drift • انجراف الكوازار';
+    final detail =
+        '${(updated.flare * 100).toStringAsFixed(0)}% flare • ${(updated.steadiness * 100).toStringAsFixed(0)}% steadiness • ${(updated.flux * 100).toStringAsFixed(0)}% flux';
+    _recordMoment(
+      ExperienceMoment(
+        id: 'quasar_${updated.id}_${now.millisecondsSinceEpoch}',
+        blueprintId: blueprintId,
+        kind: ExperienceMomentKind.quasar,
+        title: headline,
+        detail: detail,
+        timestamp: now,
+        mood: _resolveQuasarMood(updated),
+      ),
+    );
+    _scheduleQuasarBeacon();
+    notifyListeners();
+  }
+
+  void cycleQuasar({bool manual = false}) {
+    if (_quasars.isEmpty) {
+      return;
+    }
+    final currentIndex = _activeQuasar == null
+        ? -1
+        : _quasars.indexWhere((entry) => entry.id == _activeQuasar!.id);
+    final nextIndex = (currentIndex + 1) % _quasars.length;
+    openQuasar(_quasars[nextIndex], manual: manual);
   }
 
   void pinBlueprint(ExperienceBlueprint blueprint) {
@@ -827,18 +936,24 @@ class ExperienceController extends ChangeNotifier {
     _activeNova = null;
     await _preferences.clearExperienceNovas();
     await _preferences.setActiveNovaId(null);
+    _quasars.clear();
+    _activeQuasar = null;
+    await _preferences.clearExperienceQuasars();
+    await _preferences.setActiveQuasarId(null);
     _initializeOrbits();
     _initializeConstellations();
     _initializeHorizons();
     _initializeAuroras();
     _initializeNebulas();
     _initializeNovas();
+    _initializeQuasars();
     _scheduleOrbitCycle();
     _scheduleConstellationDrift();
     _scheduleHorizonSweep();
     _scheduleAuroraCascade();
     _scheduleNebulaSurge();
     _scheduleNovaBurst();
+    _scheduleQuasarBeacon();
     _emitPulse(force: true);
     notifyListeners();
   }
@@ -925,6 +1040,18 @@ class ExperienceController extends ChangeNotifier {
     _novaTimer = Timer(Duration(seconds: seconds), () {
       cycleNova();
       _scheduleNovaBurst();
+    });
+  }
+
+  void _scheduleQuasarBeacon() {
+    _quasarTimer?.cancel();
+    if (_quasars.isEmpty) {
+      return;
+    }
+    final seconds = 128 + _random.nextInt(52);
+    _quasarTimer = Timer(Duration(seconds: seconds), () {
+      cycleQuasar();
+      _scheduleQuasarBeacon();
     });
   }
 
@@ -1028,6 +1155,7 @@ class ExperienceController extends ChangeNotifier {
     _initializeAuroras();
     _initializeNebulas();
     _initializeNovas();
+    _initializeQuasars();
     _emitPulse(force: true);
   }
 
@@ -1552,6 +1680,71 @@ class ExperienceController extends ChangeNotifier {
     unawaited(_preferences.setActiveNovaId(_activeNova?.id));
   }
 
+  void _initializeQuasars() {
+    final stored = _preferences.getExperienceQuasars();
+    final restored = stored
+        .map(ExperienceQuasar.fromEncoded)
+        .fold<Map<String, ExperienceQuasar>>(<String, ExperienceQuasar>{}, (map, quasar) {
+      map[quasar.id] = quasar;
+      return map;
+    });
+    final defaults = <ExperienceQuasar>[
+      ExperienceQuasar(
+        id: 'quasar_observatory',
+        title: 'Quasar Observatory',
+        novaIds: const ['nova_orchestra', 'nova_halo'],
+        beaconItemIds: const <String>[],
+        prismHints: const [SceneMood.futuristic, SceneMood.vibrant],
+      ),
+      ExperienceQuasar(
+        id: 'quasar_resonance',
+        title: 'Resonant Singularity',
+        novaIds: const ['nova_orchestra'],
+        beaconItemIds: const <String>[],
+        prismHints: const [SceneMood.moody, SceneMood.serene],
+      ),
+    ];
+    _quasars
+      ..clear()
+      ..addAll(defaults.map((entry) {
+        final restoredEntry = restored[entry.id];
+        final beacons = restoredEntry?.beaconItemIds.isNotEmpty == true
+            ? restoredEntry!.beaconItemIds
+            : _collectQuasarBeaconItems(entry.novaIds);
+        final flare = restoredEntry?.flare ?? _calculateQuasarFlare(entry.novaIds);
+        final steadiness =
+            restoredEntry?.steadiness ?? _calculateQuasarSteadiness(entry.novaIds);
+        final flux = restoredEntry?.flux ?? _calculateQuasarFlux(entry.novaIds);
+        final featured = restoredEntry?.featuredNovaId ?? _suggestQuasarNova(entry.novaIds);
+        return ExperienceQuasar(
+          id: entry.id,
+          title: entry.title,
+          novaIds: entry.novaIds,
+          beaconItemIds: beacons,
+          prismHints: entry.prismHints,
+          flare: flare,
+          steadiness: steadiness,
+          flux: flux,
+          lastBeacon: restoredEntry?.lastBeacon,
+          featuredNovaId: featured,
+        );
+      }));
+    _syncQuasars(persist: false);
+    final activeId = _preferences.getActiveQuasarId();
+    if (activeId != null) {
+      try {
+        _activeQuasar = _quasars.firstWhere((entry) => entry.id == activeId);
+      } catch (_) {
+        _activeQuasar = null;
+      }
+    }
+    if (_activeQuasar == null && _quasars.isNotEmpty) {
+      _activeQuasar = _quasars.first;
+    }
+    _persistQuasars();
+    unawaited(_preferences.setActiveQuasarId(_activeQuasar?.id));
+  }
+
   void _persistOrbits() {
     unawaited(
       _preferences.setExperienceOrbits(
@@ -1608,6 +1801,18 @@ class ExperienceController extends ChangeNotifier {
     unawaited(
       _preferences.setExperienceNovas(
         _novas.map((entry) => entry.encode()).toList(),
+      ),
+    );
+  }
+
+  void _persistQuasars() {
+    if (_quasars.isEmpty) {
+      unawaited(_preferences.clearExperienceQuasars());
+      return;
+    }
+    unawaited(
+      _preferences.setExperienceQuasars(
+        _quasars.map((entry) => entry.encode()).toList(),
       ),
     );
   }
@@ -2247,6 +2452,183 @@ class ExperienceController extends ChangeNotifier {
     }
   }
 
+  List<String> _collectQuasarBeaconItems(List<String> novaIds) {
+    final seen = <String>{};
+    final items = <String>[];
+    for (final novaId in novaIds) {
+      ExperienceNova? nova;
+      try {
+        nova = _novas.firstWhere((entry) => entry.id == novaId);
+      } catch (_) {
+        nova = null;
+      }
+      if (nova == null) {
+        continue;
+      }
+      for (final item in resolveNovaItems(nova)) {
+        if (seen.add(item.id)) {
+          items.add(item.id);
+        }
+        if (items.length >= 14) {
+          break;
+        }
+      }
+      if (items.length >= 14) {
+        break;
+      }
+    }
+    if (items.length < 8) {
+      final favorites = _catalogController.favoriteIds;
+      for (final itemId in favorites) {
+        if (seen.add(itemId)) {
+          items.add(itemId);
+        }
+        if (items.length >= 14) {
+          break;
+        }
+      }
+    }
+    return items.take(14).toList();
+  }
+
+  double _calculateQuasarFlare(List<String> novaIds) {
+    if (novaIds.isEmpty) {
+      return 0.3;
+    }
+    final now = DateTime.now();
+    final values = <double>[];
+    for (final novaId in novaIds) {
+      ExperienceNova? nova;
+      try {
+        nova = _novas.firstWhere((entry) => entry.id == novaId);
+      } catch (_) {
+        nova = null;
+      }
+      if (nova == null) {
+        continue;
+      }
+      final recency = nova.lastIgnition == null
+          ? 0.25
+          : (1 - (now.difference(nova.lastIgnition!).inMinutes / 480).clamp(0, 1)) * 0.35;
+      values.add((nova.intensity * 0.6 + recency).clamp(0, 1));
+    }
+    if (values.isEmpty) {
+      return 0.3;
+    }
+    final average = values.reduce((value, element) => value + element) / values.length;
+    final synergy = (novaIds.length - 1) * 0.04;
+    return (average + synergy).clamp(0, 1);
+  }
+
+  double _calculateQuasarSteadiness(List<String> novaIds) {
+    if (novaIds.isEmpty) {
+      return 0.35;
+    }
+    final now = DateTime.now();
+    final values = <double>[];
+    for (final novaId in novaIds) {
+      ExperienceNova? nova;
+      try {
+        nova = _novas.firstWhere((entry) => entry.id == novaId);
+      } catch (_) {
+        nova = null;
+      }
+      if (nova == null) {
+        continue;
+      }
+      final cadence = nova.lastIgnition == null
+          ? 0.2
+          : (1 - (now.difference(nova.lastIgnition!).inMinutes / 720).clamp(0, 1)) * 0.3;
+      values.add((nova.stability * 0.7 + cadence).clamp(0, 1));
+    }
+    if (values.isEmpty) {
+      return 0.35;
+    }
+    final average = values.reduce((value, element) => value + element) / values.length;
+    return average.clamp(0, 1);
+  }
+
+  double _calculateQuasarFlux(List<String> novaIds) {
+    if (novaIds.isEmpty) {
+      return 0.28;
+    }
+    final values = <double>[];
+    for (final novaId in novaIds) {
+      ExperienceNova? nova;
+      try {
+        nova = _novas.firstWhere((entry) => entry.id == novaId);
+      } catch (_) {
+        nova = null;
+      }
+      if (nova == null) {
+        continue;
+      }
+      values.add(novaBrilliance(nova));
+    }
+    if (values.isEmpty) {
+      return 0.28;
+    }
+    final average = values.reduce((value, element) => value + element) / values.length;
+    return average.clamp(0, 1);
+  }
+
+  String? _suggestQuasarNova(List<String> novaIds) {
+    String? bestId;
+    var bestScore = -1.0;
+    final now = DateTime.now();
+    for (final novaId in novaIds) {
+      ExperienceNova? nova;
+      try {
+        nova = _novas.firstWhere((entry) => entry.id == novaId);
+      } catch (_) {
+        nova = null;
+      }
+      if (nova == null) {
+        continue;
+      }
+      final flux = novaBrilliance(nova);
+      final recency = nova.lastIgnition == null
+          ? 0.2
+          : (1 - (now.difference(nova.lastIgnition!).inMinutes / 600).clamp(0, 1)) * 0.3;
+      final score = flux * 0.6 + (nova.intensity * 0.2) + (nova.stability * 0.1) + recency;
+      if (score > bestScore) {
+        bestScore = score;
+        bestId = novaId;
+      }
+    }
+    return bestId;
+  }
+
+  SceneMood _resolveQuasarMood(ExperienceQuasar quasar) {
+    final featuredId =
+        quasar.featuredNovaId ?? (quasar.novaIds.isNotEmpty ? quasar.novaIds.first : null);
+    if (featuredId != null) {
+      try {
+        final nova = _novas.firstWhere((entry) => entry.id == featuredId);
+        return _resolveNovaMood(nova);
+      } catch (_) {
+        // ignore and use hints
+      }
+    }
+    return quasar.prismHints.isNotEmpty ? quasar.prismHints.first : SceneMood.futuristic;
+  }
+
+  String _resolveQuasarBlueprintId(ExperienceQuasar quasar) {
+    final fallback = _pinned?.id ?? (_blueprints.isNotEmpty ? _blueprints.first.id : 'bp_serenity');
+    final featuredId =
+        quasar.featuredNovaId ?? (quasar.novaIds.isNotEmpty ? quasar.novaIds.first : null);
+    if (featuredId == null) {
+      return fallback;
+    }
+    try {
+      final nova = _novas.firstWhere((entry) => entry.id == featuredId);
+      final blueprintId = _resolveNovaBlueprintId(nova);
+      return blueprintId.isEmpty ? fallback : blueprintId;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
   String? _suggestNovaNebula(List<String> nebulaIds) {
     String? bestId;
     var bestScore = -1.0;
@@ -2678,6 +3060,58 @@ class ExperienceController extends ChangeNotifier {
     if (persist && changed) {
       _persistNovas();
     }
+    _syncQuasars(persist: persist);
+  }
+
+  void _syncQuasars({bool persist = true}) {
+    if (_quasars.isEmpty) {
+      if (persist) {
+        _persistQuasars();
+        unawaited(_preferences.setActiveQuasarId(null));
+      }
+      return;
+    }
+    var changed = false;
+    for (var i = 0; i < _quasars.length; i++) {
+      final base = _quasars[i];
+      final beacons = _collectQuasarBeaconItems(base.novaIds);
+      final flare = _calculateQuasarFlare(base.novaIds);
+      final steadiness = _calculateQuasarSteadiness(base.novaIds);
+      final flux = _calculateQuasarFlux(base.novaIds);
+      final featured = _suggestQuasarNova(base.novaIds);
+      final beaconsChanged = !_listMatches(base.beaconItemIds, beacons);
+      final featuredChanged = featured != null && featured != base.featuredNovaId;
+      if (beaconsChanged ||
+          (flare - base.flare).abs() > 0.001 ||
+          (steadiness - base.steadiness).abs() > 0.001 ||
+          (flux - base.flux).abs() > 0.001 ||
+          featuredChanged) {
+        final updated = ExperienceQuasar(
+          id: base.id,
+          title: base.title,
+          novaIds: base.novaIds,
+          beaconItemIds: beacons,
+          prismHints: base.prismHints,
+          flare: flare,
+          steadiness: steadiness,
+          flux: flux,
+          lastBeacon: base.lastBeacon,
+          featuredNovaId: featured ?? base.featuredNovaId,
+        );
+        _quasars[i] = updated;
+        if (_activeQuasar?.id == updated.id) {
+          _activeQuasar = updated;
+        }
+        changed = true;
+      }
+    }
+    if (persist && changed) {
+      _persistQuasars();
+      unawaited(_preferences.setActiveQuasarId(_activeQuasar?.id));
+    }
+    if (changed) {
+      _scheduleQuasarBeacon();
+    }
   }
 
   void _syncAuroras({bool persist = true}) {
@@ -2859,6 +3293,7 @@ class ExperienceController extends ChangeNotifier {
     _auroraTimer?.cancel();
     _nebulaTimer?.cancel();
     _novaTimer?.cancel();
+    _quasarTimer?.cancel();
     _catalogController.removeListener(_catalogListener);
     _showroomController.removeListener(_showroomListener);
     _signalController.close();

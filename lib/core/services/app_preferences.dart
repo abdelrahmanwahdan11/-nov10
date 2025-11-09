@@ -27,6 +27,8 @@ class AppPreferences {
   static const _experienceActiveNebulaKey = 'experience_active_nebula';
   static const _experienceNovasKey = 'experience_novas';
   static const _experienceActiveNovaKey = 'experience_active_nova';
+  static const _experienceQuasarsKey = 'experience_quasars';
+  static const _experienceActiveQuasarKey = 'experience_active_quasar';
 
   late final SharedPreferences _prefs;
 
@@ -300,6 +302,29 @@ class AppPreferences {
       await _prefs.remove(_experienceActiveNovaKey);
     } else {
       await _prefs.setString(_experienceActiveNovaKey, id);
+    }
+  }
+
+  List<String> getExperienceQuasars() {
+    return _prefs.getStringList(_experienceQuasarsKey) ?? <String>[];
+  }
+
+  Future<void> setExperienceQuasars(List<String> quasars) async {
+    await _prefs.setStringList(_experienceQuasarsKey, quasars);
+  }
+
+  Future<void> clearExperienceQuasars() async {
+    await _prefs.remove(_experienceQuasarsKey);
+  }
+
+  String? getActiveQuasarId() =>
+      _prefs.getString(_experienceActiveQuasarKey);
+
+  Future<void> setActiveQuasarId(String? id) async {
+    if (id == null) {
+      await _prefs.remove(_experienceActiveQuasarKey);
+    } else {
+      await _prefs.setString(_experienceActiveQuasarKey, id);
     }
   }
 }

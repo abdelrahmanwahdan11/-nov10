@@ -145,6 +145,18 @@ class AppLocalizations {
       'experience_novas_empty':
           'Ignite additional nebulae to compose nova ateliers.',
       'experience_moment_nova': 'Nova ignition',
+      'experience_quasars_title': 'Quasar observatory',
+      'experience_quasars_subtitle':
+          'Stitch nova ateliers into beaconed hyper stories.',
+      'experience_quasar_cycle': 'Cycle quasar',
+      'experience_quasar_flare': 'Quasar flare',
+      'experience_quasar_steadiness': 'Steadiness',
+      'experience_quasar_flux': 'Flux',
+      'experience_quasar_last': 'Last beacon',
+      'experience_quasar_last_never': 'No beacon yet',
+      'experience_quasars_empty':
+          'Trigger more nova ignitions to unlock quasar observatories.',
+      'experience_moment_quasar': 'Quasar beacon',
     },
     'ar': {
       'app_title': 'كتالوج نيو',
@@ -284,6 +296,18 @@ class AppLocalizations {
       'experience_novas_empty':
           'أشعل المزيد من السدم لصناعة محترف النوفا المتقدم.',
       'experience_moment_nova': 'إشعال النوفا',
+      'experience_quasars_title': 'مرصد الكوازار',
+      'experience_quasars_subtitle':
+          'مزج محترفات النوفا في حكايات منارة متجددة.',
+      'experience_quasar_cycle': 'تدوير الكوازار',
+      'experience_quasar_flare': 'وميض الكوازار',
+      'experience_quasar_steadiness': 'الثبات',
+      'experience_quasar_flux': 'التدفق',
+      'experience_quasar_last': 'آخر منارة',
+      'experience_quasar_last_never': 'لم تُفعَّل أي منارة بعد',
+      'experience_quasars_empty':
+          'أشعل المزيد من محترفات النوفا لفتح مراقبة الكوازار.',
+      'experience_moment_quasar': 'منارة كوازار',
     },
   };
 

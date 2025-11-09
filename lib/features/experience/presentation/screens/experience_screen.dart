@@ -11,6 +11,7 @@ import '../../../../core/models/experience_horizon.dart';
 import '../../../../core/models/experience_moment.dart';
 import '../../../../core/models/experience_nebula.dart';
 import '../../../../core/models/experience_nova.dart';
+import '../../../../core/models/experience_quasar.dart';
 import '../../../../core/models/experience_blueprint.dart';
 import '../../../../core/models/experience_orbit.dart';
 import '../../../../core/models/item.dart';
@@ -63,6 +64,8 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
           final activeNebula = _controller.activeNebula;
           final novas = _controller.novas;
           final activeNova = _controller.activeNova;
+          final quasars = _controller.quasars;
+          final activeQuasar = _controller.activeQuasar;
           return CustomScrollView(
             padding: const EdgeInsets.only(bottom: 96),
             slivers: [
@@ -149,6 +152,18 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
                   child: _NovaRadiance(
                     novas: novas,
                     activeNova: activeNova,
+                    controller: _controller,
+                    localization: localization,
+                    onSelectItem: widget.onSelectItem,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+                  child: _QuasarObservatory(
+                    quasars: quasars,
+                    activeQuasar: activeQuasar,
                     controller: _controller,
                     localization: localization,
                     onSelectItem: widget.onSelectItem,
@@ -2083,6 +2098,318 @@ class _NovaEmptyState extends StatelessWidget {
   }
 }
 
+class _QuasarObservatory extends StatelessWidget {
+  const _QuasarObservatory({
+    required this.quasars,
+    required this.activeQuasar,
+    required this.controller,
+    required this.localization,
+    required this.onSelectItem,
+  });
+
+  final List<ExperienceQuasar> quasars;
+  final ExperienceQuasar? activeQuasar;
+  final ExperienceController controller;
+  final AppLocalizations localization;
+  final ValueChanged<CatalogItem> onSelectItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    localization.translate('experience_quasars_title'),
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    localization.translate('experience_quasars_subtitle'),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.hintColor),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed:
+                  quasars.isEmpty ? null : () => controller.cycleQuasar(manual: true),
+              tooltip: localization.translate('experience_quasar_cycle'),
+              icon: const Icon(IconlyLight.discovery),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (quasars.isEmpty)
+          _QuasarEmptyState(localization: localization)
+        else
+          SizedBox(
+            height: 256,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: quasars.length,
+              itemBuilder: (context, index) {
+                final quasar = quasars[index];
+                final isActive = activeQuasar?.id == quasar.id;
+                return _QuasarCard(
+                  quasar: quasar,
+                  isActive: isActive,
+                  controller: controller,
+                  localization: localization,
+                  onSelectItem: onSelectItem,
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _QuasarCard extends StatelessWidget {
+  const _QuasarCard({
+    required this.quasar,
+    required this.isActive,
+    required this.controller,
+    required this.localization,
+    required this.onSelectItem,
+  });
+
+  final ExperienceQuasar quasar;
+  final bool isActive;
+  final ExperienceController controller;
+  final AppLocalizations localization;
+  final ValueChanged<CatalogItem> onSelectItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final flarePercent = (quasar.flare * 100).clamp(0, 100).toDouble();
+    final steadinessPercent = (quasar.steadiness * 100).clamp(0, 100).toDouble();
+    final fluxPercent = (quasar.flux * 100).clamp(0, 100).toDouble();
+    final items = controller.resolveQuasarItems(quasar).take(10).toList();
+    ExperienceNova? featuredNova;
+    if (quasar.featuredNovaId != null) {
+      try {
+        featuredNova = controller.novas
+            .firstWhere((entry) => entry.id == quasar.featuredNovaId);
+      } catch (_) {
+        featuredNova = null;
+      }
+    }
+    final materialLocalizations = MaterialLocalizations.of(context);
+    final mediaQuery = MediaQuery.of(context);
+    final lastBeacon = quasar.lastBeacon;
+    final lastLabel = lastBeacon == null
+        ? localization.translate('experience_quasar_last_never')
+        : '${localization.translate('experience_quasar_last')} '
+            '${materialLocalizations.formatMediumDate(lastBeacon)} · '
+            '${materialLocalizations.formatTimeOfDay(',
+              TimeOfDay.fromDateTime(lastBeacon),
+              alwaysUse24HourFormat: mediaQuery.alwaysUse24HourFormat,
+            )}';
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 360),
+      width: 312,
+      margin: const EdgeInsets.only(right: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: isActive
+              ? theme.colorScheme.primary
+              : theme.dividerColor.withOpacity(0.4),
+        ),
+        gradient: LinearGradient(
+          colors: isActive
+              ? [
+                  theme.colorScheme.primary.withOpacity(0.18),
+                  theme.colorScheme.secondary.withOpacity(0.12),
+                ]
+              : [
+                  theme.colorScheme.surfaceVariant.withOpacity(0.1),
+                  theme.colorScheme.surfaceVariant.withOpacity(0.04),
+                ],
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(28),
+        onTap: () => controller.openQuasar(quasar, manual: true),
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          quasar.title,
+                          style: theme.textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        if (featuredNova != null)
+                          Text(
+                            featuredNova!.title,
+                            style: theme.textTheme.bodySmall
+                                ?.copyWith(color: theme.hintColor),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    isActive ? IconlyBold.discovery : IconlyLight.discovery,
+                    color: theme.colorScheme.primary,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '${localization.translate('experience_quasar_flare')} '
+                '${flarePercent.toStringAsFixed(0)}%',
+                style:
+                    theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: LinearProgressIndicator(
+                  value: quasar.flare.clamp(0.0, 1.0),
+                  minHeight: 6,
+                  backgroundColor:
+                      theme.colorScheme.primary.withOpacity(0.2),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '${localization.translate('experience_quasar_steadiness')} '
+                '${steadinessPercent.toStringAsFixed(0)}%',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: LinearProgressIndicator(
+                  value: quasar.steadiness.clamp(0.0, 1.0),
+                  minHeight: 6,
+                  backgroundColor:
+                      theme.colorScheme.secondary.withOpacity(0.18),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    theme.colorScheme.secondary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(IconlyLight.activity, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${localization.translate('experience_quasar_flux')} '
+                    '${fluxPercent.toStringAsFixed(0)}%',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: items
+                    .map(
+                      (item) => GestureDetector(
+                        onTap: () => onSelectItem(item),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(14),
+                              child: Image.network(
+                                item.imageUrl,
+                                width: 48,
+                                height: 48,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            SizedBox(
+                              width: 64,
+                              child: Text(
+                                item.name,
+                                style: theme.textTheme.labelSmall,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+              const Spacer(),
+              Text(
+                lastLabel,
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuasarEmptyState extends StatelessWidget {
+  const _QuasarEmptyState({required this.localization});
+
+  final AppLocalizations localization;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: theme.dividerColor.withOpacity(0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            localization.translate('experience_quasars_title'),
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            localization.translate('experience_quasars_empty'),
+            style: theme.textTheme.bodyMedium?.copyWith(color: theme.hintColor),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ConstellationEmptyState extends StatelessWidget {
   const _ConstellationEmptyState({required this.localization});
 
@@ -2885,6 +3212,10 @@ class _ChronicleSection extends StatelessWidget {
         return IconlyLight.star;
       case ExperienceMomentKind.nebula:
         return IconlyLight.sun;
+      case ExperienceMomentKind.nova:
+        return IconlyBold.star;
+      case ExperienceMomentKind.quasar:
+        return IconlyBold.discovery;
     }
   }
 
@@ -2908,6 +3239,10 @@ class _ChronicleSection extends StatelessWidget {
         return theme.colorScheme.tertiaryContainer;
       case ExperienceMomentKind.nebula:
         return theme.colorScheme.secondary;
+      case ExperienceMomentKind.nova:
+        return theme.colorScheme.primary;
+      case ExperienceMomentKind.quasar:
+        return theme.colorScheme.tertiary;
     }
   }
 
@@ -2931,6 +3266,10 @@ class _ChronicleSection extends StatelessWidget {
         return localization.translate('experience_moment_aurora');
       case ExperienceMomentKind.nebula:
         return localization.translate('experience_moment_nebula');
+      case ExperienceMomentKind.nova:
+        return localization.translate('experience_moment_nova');
+      case ExperienceMomentKind.quasar:
+        return localization.translate('experience_moment_quasar');
     }
   }
 
