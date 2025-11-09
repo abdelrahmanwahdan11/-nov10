@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'showroom_scene.dart';
 
-enum ExperienceMomentKind { pulse, progress, focus, reflection }
+enum ExperienceMomentKind { pulse, progress, focus, reflection, orbit }
 
 class ExperienceMoment {
   ExperienceMoment({

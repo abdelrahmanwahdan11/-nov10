@@ -76,6 +76,16 @@ class AppLocalizations {
       'experience_moment_progress': 'Progress marker',
       'experience_moment_focus': 'Focus locked',
       'experience_moment_reflection': 'Reflection',
+      'experience_moment_orbit': 'Orbit sync',
+      'experience_orbits_title': 'Orbit navigator',
+      'experience_orbits_subtitle':
+          'Cycle immersive journeys and surface synced items.',
+      'experience_orbit_cycle': 'Cycle orbit',
+      'experience_orbit_intensity': 'Orbit intensity',
+      'experience_orbit_last': 'Last resonance',
+      'experience_orbit_last_never': 'Not activated yet',
+      'experience_orbits_empty':
+          'Advance a phase or add favorites to generate dynamic orbits.',
     },
     'ar': {
       'app_title': 'كتالوج نيو',
@@ -146,6 +156,16 @@ class AppLocalizations {
       'experience_moment_progress': 'علامة تقدم',
       'experience_moment_focus': 'تركيز مثبت',
       'experience_moment_reflection': 'لحظة تأمل',
+      'experience_moment_orbit': 'تزامن المدار',
+      'experience_orbits_title': 'ملاحة المدارات',
+      'experience_orbits_subtitle':
+          'تدوير الرحلات الغامرة وإظهار العناصر المتزامنة.',
+      'experience_orbit_cycle': 'تدوير المدار',
+      'experience_orbit_intensity': 'شدة المدار',
+      'experience_orbit_last': 'آخر تردد',
+      'experience_orbit_last_never': 'لم يتم التفعيل بعد',
+      'experience_orbits_empty':
+          'أكمل مرحلة أو أضف مفضلة لتوليد المدارات الديناميكية.',
     },
   };
 

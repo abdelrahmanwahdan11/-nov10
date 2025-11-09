@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../models/experience_blueprint.dart';
 import '../models/experience_moment.dart';
+import '../models/experience_orbit.dart';
 import '../models/item.dart';
 import '../models/showroom_scene.dart';
 import '../services/app_preferences.dart';
@@ -29,6 +30,7 @@ class ExperienceController extends ChangeNotifier {
     _seedBlueprints();
     _restoreState();
     _schedulePulse();
+    _scheduleOrbitCycle();
   }
 
   final CatalogController _catalogController;
@@ -46,6 +48,9 @@ class ExperienceController extends ChangeNotifier {
   Timer? _pulseTimer;
   final List<ExperienceMoment> _chronicle = <ExperienceMoment>[];
   ExperienceFocus? _activeFocus;
+  final List<ExperienceOrbit> _orbits = <ExperienceOrbit>[];
+  ExperienceOrbit? _activeOrbit;
+  Timer? _orbitTimer;
 
   List<ExperienceBlueprint> get blueprints => List.unmodifiable(_blueprints);
   ExperienceBlueprint? get pinnedBlueprint => _pinned;
@@ -53,6 +58,8 @@ class ExperienceController extends ChangeNotifier {
   Stream<ExperienceSignal> get pulseStream => _signalController.stream;
   List<ExperienceMoment> get chronicle => List.unmodifiable(_chronicle);
   ExperienceFocus? get activeFocus => _activeFocus;
+  List<ExperienceOrbit> get orbits => List.unmodifiable(_orbits);
+  ExperienceOrbit? get activeOrbit => _activeOrbit;
 
   double blueprintProgress(ExperienceBlueprint blueprint) {
     return blueprint.progress(_getPhaseProgress);
@@ -78,6 +85,62 @@ class ExperienceController extends ChangeNotifier {
       (scene) => scene.mood == blueprint.focusMood,
       orElse: () => scenes.first,
     );
+  }
+
+  List<CatalogItem> resolveOrbitItems(ExperienceOrbit orbit) {
+    final blueprint = findById(orbit.blueprintId);
+    if (blueprint == null) {
+      return const <CatalogItem>[];
+    }
+    return resolveItems(blueprint);
+  }
+
+  void activateOrbit(ExperienceOrbit orbit, {bool manual = true}) {
+    final index = _orbits.indexWhere((entry) => entry.id == orbit.id);
+    if (index == -1) {
+      return;
+    }
+    if (_activeOrbit?.id == orbit.id && !manual) {
+      return;
+    }
+    final now = DateTime.now();
+    final updated = _orbits[index].copyWith(lastActivated: now);
+    _orbits[index] = updated;
+    _activeOrbit = updated;
+    _persistOrbits();
+    unawaited(_preferences.setActiveOrbitId(updated.id));
+    final blueprint = findById(updated.blueprintId);
+    if (blueprint != null) {
+      final title = manual
+          ? 'Manual orbit alignment • محاذاة يدوية'
+          : 'Auto orbit cycle • دوران تلقائي';
+      final detail =
+          'Orbit intensity ${(updated.intensity * 100).toStringAsFixed(0)}% • طاقة المدار';
+      _recordMoment(
+        ExperienceMoment(
+          id: 'orbit_${updated.id}_${now.millisecondsSinceEpoch}',
+          blueprintId: blueprint.id,
+          kind: ExperienceMomentKind.orbit,
+          title: title,
+          detail: detail,
+          timestamp: now,
+          mood: blueprint.focusMood,
+        ),
+      );
+    }
+    _scheduleOrbitCycle();
+    notifyListeners();
+  }
+
+  void cycleOrbit({bool manual = false}) {
+    if (_orbits.isEmpty) {
+      return;
+    }
+    final currentIndex = _activeOrbit == null
+        ? -1
+        : _orbits.indexWhere((orbit) => orbit.id == _activeOrbit!.id);
+    final nextIndex = (currentIndex + 1) % _orbits.length;
+    activateOrbit(_orbits[nextIndex], manual: manual);
   }
 
   void pinBlueprint(ExperienceBlueprint blueprint) {
@@ -146,6 +209,13 @@ class ExperienceController extends ChangeNotifier {
         releaseFocus(recordMoment: false);
       }
     }
+    if (blueprint != null) {
+      final completion = _calculateBlueprintCompletion(blueprint);
+      _updateOrbit(
+        blueprint.id,
+        (orbit) => orbit.copyWith(completion: completion),
+      );
+    }
     notifyListeners();
   }
 
@@ -159,6 +229,11 @@ class ExperienceController extends ChangeNotifier {
     await _preferences.clearExperienceChronicle();
     await _preferences.setExperienceFocus(null);
     _activeFocus = null;
+    _resetOrbits();
+    await _preferences.clearExperienceOrbits();
+    await _preferences.setActiveOrbitId(null);
+    _initializeOrbits();
+    _scheduleOrbitCycle();
     _emitPulse(force: true);
     notifyListeners();
   }
@@ -176,6 +251,17 @@ class ExperienceController extends ChangeNotifier {
     _pulseTimer = Timer(const Duration(seconds: 9), () {
       _emitPulse();
       _schedulePulse();
+    });
+  }
+
+  void _scheduleOrbitCycle() {
+    _orbitTimer?.cancel();
+    if (_orbits.isEmpty) {
+      return;
+    }
+    _orbitTimer = Timer(const Duration(seconds: 16), () {
+      cycleOrbit();
+      _scheduleOrbitCycle();
     });
   }
 
@@ -236,6 +322,14 @@ class ExperienceController extends ChangeNotifier {
         mood: blueprint.focusMood,
       ),
     );
+    _updateOrbit(
+      blueprint.id,
+      (orbit) => orbit.copyWith(
+        pulseCount: orbit.pulseCount + 1,
+        highlightItemIds: blueprint.relatedItemIds.take(4).toList(),
+      ),
+    );
+    _scheduleOrbitCycle();
     notifyListeners();
   }
 
@@ -265,6 +359,7 @@ class ExperienceController extends ChangeNotifier {
         _getPhaseProgress(key);
       }
     }
+    _initializeOrbits();
     _emitPulse(force: true);
   }
 
@@ -299,6 +394,7 @@ class ExperienceController extends ChangeNotifier {
         mood: blueprint.focusMood,
       ),
     );
+    _syncOrbitFocusState();
     notifyListeners();
   }
 
@@ -327,6 +423,7 @@ class ExperienceController extends ChangeNotifier {
         ),
       );
     }
+    _syncOrbitFocusState();
     notifyListeners();
   }
 
@@ -360,6 +457,135 @@ class ExperienceController extends ChangeNotifier {
         _chronicle.map((entry) => entry.encode()).toList(),
       ),
     );
+  }
+
+  void _initializeOrbits() {
+    final stored = _preferences.getExperienceOrbits();
+    final restored = stored
+        .map(ExperienceOrbit.fromEncoded)
+        .fold<Map<String, ExperienceOrbit>>(<String, ExperienceOrbit>{},
+            (map, orbit) {
+      map[orbit.blueprintId] = orbit;
+      return map;
+    });
+    _orbits
+      ..clear()
+      ..addAll(
+        _blueprints.map((blueprint) {
+          final completion = _calculateBlueprintCompletion(blueprint);
+          final base = ExperienceOrbit(
+            id: 'orbit_${blueprint.id}',
+            blueprintId: blueprint.id,
+            title: blueprint.title,
+            mood: blueprint.focusMood,
+            phaseIds: blueprint.phases.map((phase) => phase.id).toList(),
+            highlightItemIds: blueprint.relatedItemIds.take(4).toList(),
+            completion: completion,
+            hasFocus: _activeFocus?.blueprintId == blueprint.id,
+          );
+          final restoredOrbit = restored[blueprint.id];
+          if (restoredOrbit == null) {
+            return base;
+          }
+          return restoredOrbit.copyWith(
+            title: base.title,
+            phaseIds: base.phaseIds,
+            highlightItemIds: base.highlightItemIds,
+            completion: completion,
+            hasFocus: base.hasFocus,
+          );
+        }),
+      );
+    final activeId = _preferences.getActiveOrbitId();
+    if (activeId != null) {
+      try {
+        _activeOrbit =
+            _orbits.firstWhere((orbit) => orbit.id == activeId);
+      } catch (_) {
+        _activeOrbit = null;
+      }
+    }
+    if (_activeOrbit == null && _orbits.isNotEmpty) {
+      _activeOrbit = _orbits.firstWhere(
+        (orbit) => orbit.hasFocus,
+        orElse: () => _orbits.first,
+      );
+    }
+    _persistOrbits();
+    unawaited(
+      _preferences.setActiveOrbitId(_activeOrbit?.id),
+    );
+  }
+
+  void _persistOrbits() {
+    unawaited(
+      _preferences.setExperienceOrbits(
+        _orbits.map((orbit) => orbit.encode()).toList(),
+      ),
+    );
+  }
+
+  void _updateOrbit(
+    String blueprintId,
+    ExperienceOrbit Function(ExperienceOrbit orbit) updater,
+  ) {
+    final index =
+        _orbits.indexWhere((orbit) => orbit.blueprintId == blueprintId);
+    if (index == -1) {
+      return;
+    }
+    final updated = updater(_orbits[index]);
+    _orbits[index] = updated;
+    if (_activeOrbit?.id == updated.id) {
+      _activeOrbit = updated;
+    }
+    _persistOrbits();
+  }
+
+  double _calculateBlueprintCompletion(ExperienceBlueprint blueprint) {
+    if (blueprint.phases.isEmpty) {
+      return 0;
+    }
+    final total = blueprint.phases.fold<double>(0, (value, phase) {
+      return value +
+          _getPhaseProgress('${blueprint.id}::${phase.id}');
+    });
+    return (total / blueprint.phases.length).clamp(0, 1);
+  }
+
+  void _syncOrbitFocusState() {
+    final focusBlueprintId = _activeFocus?.blueprintId;
+    var changed = false;
+    for (var i = 0; i < _orbits.length; i++) {
+      final orbit = _orbits[i];
+      final shouldFocus = orbit.blueprintId == focusBlueprintId;
+      if (orbit.hasFocus != shouldFocus) {
+        final updated = orbit.copyWith(hasFocus: shouldFocus);
+        _orbits[i] = updated;
+        if (_activeOrbit?.id == updated.id) {
+          _activeOrbit = updated;
+        }
+        changed = true;
+      }
+    }
+    if (changed) {
+      _persistOrbits();
+    }
+  }
+
+  void _resetOrbits() {
+    for (var i = 0; i < _orbits.length; i++) {
+      final orbit = _orbits[i];
+      _orbits[i] = orbit.copyWith(
+        pulseCount: 0,
+        completion: 0,
+        hasFocus: false,
+        lastActivated: null,
+      );
+    }
+    _activeOrbit = null;
+    _persistOrbits();
+    unawaited(_preferences.setActiveOrbitId(null));
   }
 
   void _seedBlueprints() {
@@ -480,6 +706,7 @@ class ExperienceController extends ChangeNotifier {
   @override
   void dispose() {
     _pulseTimer?.cancel();
+    _orbitTimer?.cancel();
     _catalogController.removeListener(_catalogListener);
     _showroomController.removeListener(_showroomListener);
     _signalController.close();

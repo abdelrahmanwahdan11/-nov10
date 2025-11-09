@@ -14,6 +14,8 @@ class AppPreferences {
   static const _experiencePhasePrefix = 'experience_phase_';
   static const _experienceChronicleKey = 'experience_chronicle';
   static const _experienceFocusKey = 'experience_focus';
+  static const _experienceOrbitsKey = 'experience_orbits';
+  static const _experienceActiveOrbitKey = 'experience_active_orbit';
 
   late final SharedPreferences _prefs;
 
@@ -148,6 +150,28 @@ class AppPreferences {
       await _prefs.remove(_experienceFocusKey);
     } else {
       await _prefs.setString(_experienceFocusKey, encoded);
+    }
+  }
+
+  List<String> getExperienceOrbits() {
+    return _prefs.getStringList(_experienceOrbitsKey) ?? <String>[];
+  }
+
+  Future<void> setExperienceOrbits(List<String> orbits) async {
+    await _prefs.setStringList(_experienceOrbitsKey, orbits);
+  }
+
+  Future<void> clearExperienceOrbits() async {
+    await _prefs.remove(_experienceOrbitsKey);
+  }
+
+  String? getActiveOrbitId() => _prefs.getString(_experienceActiveOrbitKey);
+
+  Future<void> setActiveOrbitId(String? id) async {
+    if (id == null) {
+      await _prefs.remove(_experienceActiveOrbitKey);
+    } else {
+      await _prefs.setString(_experienceActiveOrbitKey, id);
     }
   }
 }

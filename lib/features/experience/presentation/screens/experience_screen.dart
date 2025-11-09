@@ -7,6 +7,7 @@ import '../../../../app/app_scope.dart';
 import '../../../../core/controllers/experience_controller.dart';
 import '../../../../core/models/experience_moment.dart';
 import '../../../../core/models/experience_blueprint.dart';
+import '../../../../core/models/experience_orbit.dart';
 import '../../../../core/models/item.dart';
 import '../../../../core/models/showroom_scene.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -45,6 +46,8 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
           final pinned = _controller.pinnedBlueprint;
           final signals = _controller.signals;
           final chronicle = _controller.chronicle;
+          final orbits = _controller.orbits;
+          final activeOrbit = _controller.activeOrbit;
           return CustomScrollView(
             padding: const EdgeInsets.only(bottom: 96),
             slivers: [
@@ -68,6 +71,18 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                  child: _OrbitNavigator(
+                    orbits: orbits,
+                    activeOrbit: activeOrbit,
+                    controller: _controller,
+                    localization: localization,
+                    onSelectItem: widget.onSelectItem,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
                   child: _FocusDeck(
                     controller: _controller,
                     localization: localization,
@@ -221,6 +236,302 @@ class _PulseHighlight extends StatelessWidget {
                   style: theme.textTheme.bodyMedium,
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrbitNavigator extends StatelessWidget {
+  const _OrbitNavigator({
+    required this.orbits,
+    required this.activeOrbit,
+    required this.controller,
+    required this.localization,
+    required this.onSelectItem,
+  });
+
+  final List<ExperienceOrbit> orbits;
+  final ExperienceOrbit? activeOrbit;
+  final ExperienceController controller;
+  final AppLocalizations localization;
+  final ValueChanged<CatalogItem> onSelectItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    localization.translate('experience_orbits_title'),
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    localization.translate('experience_orbits_subtitle'),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.hintColor),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed:
+                  orbits.isEmpty ? null : () => controller.cycleOrbit(manual: true),
+              tooltip: localization.translate('experience_orbit_cycle'),
+              icon: const Icon(IconlyLight.refresh),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (orbits.isEmpty)
+          _OrbitEmptyState(localization: localization)
+        else
+          SizedBox(
+            height: 172,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: orbits.length,
+              itemBuilder: (context, index) {
+                final orbit = orbits[index];
+                final isActive = activeOrbit?.id == orbit.id;
+                return _OrbitCard(
+                  orbit: orbit,
+                  isActive: isActive,
+                  controller: controller,
+                  localization: localization,
+                  onSelectItem: onSelectItem,
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _OrbitCard extends StatelessWidget {
+  const _OrbitCard({
+    required this.orbit,
+    required this.isActive,
+    required this.controller,
+    required this.localization,
+    required this.onSelectItem,
+  });
+
+  final ExperienceOrbit orbit;
+  final bool isActive;
+  final ExperienceController controller;
+  final AppLocalizations localization;
+  final ValueChanged<CatalogItem> onSelectItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isArabic = localization.locale.languageCode == 'ar';
+    final items = controller.resolveOrbitItems(orbit).take(3).toList();
+    final relative = _relativeLabel(orbit.lastActivated);
+    final phaseLabel =
+        '${orbit.phaseIds.length} phases • ${orbit.phaseIds.length} مراحل';
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
+      width: 240,
+      margin: const EdgeInsets.only(right: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+        gradient: LinearGradient(
+          colors: isActive
+              ? [
+                  theme.colorScheme.primary.withOpacity(0.24),
+                  theme.colorScheme.primary.withOpacity(0.08),
+                ]
+              : [
+                  theme.colorScheme.surface.withOpacity(0.72),
+                  theme.colorScheme.surfaceVariant.withOpacity(0.42),
+                ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(
+          color: theme.colorScheme.primary
+              .withOpacity(isActive ? 0.8 : 0.25),
+          width: isActive ? 2 : 1.2,
+        ),
+        boxShadow: [
+          if (isActive)
+            BoxShadow(
+              color: theme.colorScheme.primary.withOpacity(0.2),
+              blurRadius: 18,
+              offset: const Offset(0, 12),
+            ),
+        ],
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(26),
+          onTap: () => controller.activateOrbit(orbit, manual: true),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        orbit.title,
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (orbit.hasFocus)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Text(
+                          localization.translate('experience_focus_start'),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(IconlyLight.discovery, size: 18),
+                    const SizedBox(width: 6),
+                    Text(
+                      orbit.mood
+                          .localizedLabel(isArabic: isArabic),
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '${localization.translate('experience_orbit_intensity')} '
+                  '${(orbit.intensity * 100).toStringAsFixed(0)}%',
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: orbit.intensity.clamp(0.05, 1),
+                    minHeight: 6,
+                    backgroundColor:
+                        theme.colorScheme.onSurface.withOpacity(0.08),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      theme.colorScheme.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  phaseLabel,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.hintColor),
+                ),
+                const SizedBox(height: 10),
+                if (items.isNotEmpty)
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: items
+                        .map(
+                          (item) => ActionChip(
+                            label: Text(item.name),
+                            avatar: const Icon(IconlyLight.image, size: 18),
+                            onPressed: () => onSelectItem(item),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                const Spacer(),
+                Text(
+                  '${localization.translate('experience_orbit_last')} $relative',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.hintColor),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _relativeLabel(DateTime? timestamp) {
+    if (timestamp == null) {
+      return localization.translate('experience_orbit_last_never');
+    }
+    final difference = DateTime.now().difference(timestamp);
+    if (difference.inMinutes < 1) {
+      return 'just now • حالاً';
+    }
+    if (difference.inHours < 1) {
+      final minutes = difference.inMinutes;
+      return '$minutes m • $minutes دقيقة';
+    }
+    if (difference.inDays < 1) {
+      final hours = difference.inHours;
+      return '$hours h • $hours ساعة';
+    }
+    final days = difference.inDays;
+    return '$days d • $days يوم';
+  }
+}
+
+class _OrbitEmptyState extends StatelessWidget {
+  const _OrbitEmptyState({required this.localization});
+
+  final AppLocalizations localization;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: theme.colorScheme.surface.withOpacity(0.7),
+        border: Border.all(
+          color: theme.colorScheme.primary.withOpacity(0.18),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(IconlyLight.paper, size: 26),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              localization.translate('experience_orbits_empty'),
+              style: theme.textTheme.bodyMedium,
             ),
           ),
         ],
@@ -987,6 +1298,8 @@ class _ChronicleSection extends StatelessWidget {
         return IconlyLight.discovery;
       case ExperienceMomentKind.reflection:
         return IconlyLight.paper;
+      case ExperienceMomentKind.orbit:
+        return IconlyLight.location;
     }
   }
 
@@ -1000,6 +1313,8 @@ class _ChronicleSection extends StatelessWidget {
         return theme.colorScheme.tertiary;
       case ExperienceMomentKind.reflection:
         return theme.colorScheme.error;
+      case ExperienceMomentKind.orbit:
+        return theme.colorScheme.primaryContainer;
     }
   }
 
@@ -1013,6 +1328,8 @@ class _ChronicleSection extends StatelessWidget {
         return localization.translate('experience_moment_focus');
       case ExperienceMomentKind.reflection:
         return localization.translate('experience_moment_reflection');
+      case ExperienceMomentKind.orbit:
+        return localization.translate('experience_moment_orbit');
     }
   }
 
