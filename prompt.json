@@ -63,7 +63,8 @@
     "ComparisonToggle": "Checkbox-like chip that feeds selected items into comparison panel",
     "SearchBar": "Debounced search tied to catalog results",
     "FilterSheet": "Modal bottom sheet with segmented filters and range sliders",
-    "AIHintButton": "Outlined button with icon and tooltip that will later connect to AI service"
+    "AIHintButton": "Outlined button with icon and tooltip that will later connect to AI service",
+    "ExperiencePulseBanner": "Live bilingual ticker showing blueprint pulses and highlighting related items"
   ],
   "modules": [
     {
@@ -177,6 +178,23 @@
             "Tabs for Overview, Transactions, Goals",
             "Related items carousel with pagination",
             "Button to add item to family member"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "experience_lab",
+      "description": "Neo Experience Lab orchestrating story-driven blueprints that sync catalog favorites with showroom moods",
+      "screens": [
+        {
+          "id": "experience_dashboard",
+          "features": [
+            "Pinned blueprint hero card with auto-progress bar and mood chip",
+            "ExperiencePulseBanner streaming pulses generated from favorites and showroom scenes (no external backend)",
+            "List of blueprints with expandable phases, per-phase progress controls, and pin/unpin actions",
+            "Phase tiles expose estimated minutes, focus tags, and action buttons to open immersive viewer",
+            "RefreshIndicator clears cached progress and regenerates localized pulses",
+            "Stream-based ticker animates when new signals are emitted"
           ]
         }
       ]

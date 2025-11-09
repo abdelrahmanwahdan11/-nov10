@@ -6,6 +6,7 @@ import '../../../../core/models/item.dart';
 import '../../../../core/widgets/immersive_item_viewer.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../catalog/presentation/screens/catalog_screen.dart';
+import '../../../experience/presentation/screens/experience_screen.dart';
 import '../../../showroom/presentation/screens/showroom_screen.dart';
 import '../../../search/presentation/screens/search_screen.dart';
 import '../../../settings/presentation/screens/settings_screen.dart';
@@ -29,6 +30,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final scope = AppScope.of(context);
     final pages = [
       CatalogScreen(onSelectItem: (item) {
+        setState(() => _selectedItem = item);
+      }),
+      ExperienceScreen(onSelectItem: (item) {
         setState(() => _selectedItem = item);
       }),
       ShowroomScreen(onSelectItem: (item) {
@@ -75,6 +79,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: const Icon(IconlyLight.category),
                 selectedIcon: const Icon(IconlyBold.category),
                 label: localization.translate('catalog'),
+              ),
+              NavigationDestination(
+                icon: const Icon(IconlyLight.discovery),
+                selectedIcon: const Icon(IconlyBold.discovery),
+                label: localization.translate('experience'),
               ),
               NavigationDestination(
                 icon: const Icon(IconlyLight.play),
