@@ -91,9 +91,26 @@ class _SearchScreenState extends State<SearchScreen> {
                     ),
                     title: Text(item.name),
                     subtitle: Text(item.description),
-                    trailing: IconButton(
-                      icon: const Icon(IconlyLight.swap),
-                      onPressed: () => _controller.toggleCompare(item),
+                    trailing: Wrap(
+                      spacing: 8,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            _controller.isFavorite(item)
+                                ? IconlyBold.heart
+                                : IconlyLight.heart,
+                          ),
+                          onPressed: () => _controller.toggleFavorite(item),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            _controller.isInComparison(item)
+                                ? IconlyBold.swap
+                                : IconlyLight.swap,
+                          ),
+                          onPressed: () => _controller.toggleCompare(item),
+                        ),
+                      ],
                     ),
                   ),
                 ),

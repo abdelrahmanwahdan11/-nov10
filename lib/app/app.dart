@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../core/controllers/auth_controller.dart';
 import '../core/controllers/catalog_controller.dart';
+import '../core/controllers/showroom_controller.dart';
 import '../core/controllers/theme_controller.dart';
 import '../core/services/app_preferences.dart';
 import '../features/auth/presentation/screens/forgot_password_screen.dart';
@@ -26,6 +29,7 @@ class _NeoCatalogAppState extends State<NeoCatalogApp> {
   late final ThemeController _themeController;
   late final AuthController _authController;
   late final CatalogController _catalogController;
+  late final ShowroomController _showroomController;
   late final ValueNotifier<Locale> _localeNotifier;
   late bool _showOnboarding;
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
@@ -37,12 +41,15 @@ class _NeoCatalogAppState extends State<NeoCatalogApp> {
     final mode = widget.preferences.themeMode;
     _themeController = ThemeController(initialSeedColor: seed, initialMode: mode);
     _authController = AuthController();
-    _catalogController = CatalogController();
-    _localeNotifier = ValueNotifier<Locale>(
-      widget.preferences.themeMode == ThemeMode.system
-          ? const Locale('ar')
-          : const Locale('ar'),
+    _catalogController = CatalogController(preferences: widget.preferences);
+    _showroomController = ShowroomController(
+      catalogController: _catalogController,
+      preferences: widget.preferences,
     );
+    _localeNotifier = ValueNotifier<Locale>(widget.preferences.locale)
+      ..addListener(() {
+        unawaited(widget.preferences.setLocale(_localeNotifier.value));
+      });
     _showOnboarding = !widget.preferences.hasSeenOnboarding;
   }
 
@@ -51,6 +58,7 @@ class _NeoCatalogAppState extends State<NeoCatalogApp> {
     _themeController.dispose();
     _authController.dispose();
     _catalogController.dispose();
+    _showroomController.dispose();
     _localeNotifier.dispose();
     super.dispose();
   }
@@ -78,6 +86,7 @@ class _NeoCatalogAppState extends State<NeoCatalogApp> {
                 themeController: _themeController,
                 authController: _authController,
                 catalogController: _catalogController,
+                showroomController: _showroomController,
                 preferences: widget.preferences,
                 localeNotifier: _localeNotifier,
                 child: MaterialApp(

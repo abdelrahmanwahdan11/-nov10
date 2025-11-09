@@ -1,11 +1,16 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 
 import '../models/item.dart';
+import '../services/app_preferences.dart';
 
 class CatalogController extends ChangeNotifier {
-  CatalogController() {
+  CatalogController({required AppPreferences preferences})
+      : _preferences = preferences,
+        _favoriteIds = preferences.getFavoriteIds(),
+        _comparisonIds = preferences.getComparisonIds() {
     _seedData();
     _applyFilters();
   }
@@ -13,6 +18,9 @@ class CatalogController extends ChangeNotifier {
   final List<CatalogItem> _allItems = <CatalogItem>[];
   final List<CatalogItem> _visibleItems = <CatalogItem>[];
   final List<CatalogItem> _comparisonItems = <CatalogItem>[];
+  final AppPreferences _preferences;
+  final Set<String> _favoriteIds;
+  final Set<String> _comparisonIds;
   final Set<ItemCategory> _activeCategories = ItemCategory.values.toSet();
   String _searchQuery = '';
   bool _onlyFavorites = false;
@@ -28,6 +36,15 @@ class CatalogController extends ChangeNotifier {
   String get searchQuery => _searchQuery;
   bool get onlyFavorites => _onlyFavorites;
   Set<ItemCategory> get activeCategories => _activeCategories;
+  Set<String> get favoriteIds => Set.unmodifiable(_favoriteIds);
+
+  CatalogItem? findById(String id) {
+    try {
+      return _allItems.firstWhere((item) => item.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<void> refresh() async {
     await Future<void>.delayed(const Duration(milliseconds: 600));
@@ -78,16 +95,32 @@ class CatalogController extends ChangeNotifier {
   void toggleCompare(CatalogItem item) {
     if (_comparisonItems.contains(item)) {
       _comparisonItems.remove(item);
+      _comparisonIds.remove(item.id);
     } else {
       if (_comparisonItems.length >= 3) {
-        _comparisonItems.removeAt(0);
+        final removed = _comparisonItems.removeAt(0);
+        _comparisonIds.remove(removed.id);
       }
       _comparisonItems.add(item);
+      _comparisonIds.add(item.id);
     }
+    unawaited(_preferences.setComparisonIds(_comparisonIds));
     notifyListeners();
   }
 
   bool isInComparison(CatalogItem item) => _comparisonItems.contains(item);
+
+  bool isFavorite(CatalogItem item) => _favoriteIds.contains(item.id);
+
+  void toggleFavorite(CatalogItem item) {
+    if (_favoriteIds.contains(item.id)) {
+      _favoriteIds.remove(item.id);
+    } else {
+      _favoriteIds.add(item.id);
+    }
+    unawaited(_preferences.setFavoriteIds(_favoriteIds));
+    notifyListeners();
+  }
 
   List<CatalogItem> get filteredItems {
     final filters = _allItems.where((item) {
@@ -95,7 +128,7 @@ class CatalogController extends ChangeNotifier {
       final matchesQuery = _searchQuery.isEmpty ||
           item.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           item.description.toLowerCase().contains(_searchQuery.toLowerCase());
-      final matchesFavorites = !_onlyFavorites || item.tags.contains(ItemTag.bestSeller);
+      final matchesFavorites = !_onlyFavorites || _favoriteIds.contains(item.id);
       return matchesCategory && matchesQuery && matchesFavorites;
     }).toList();
     return filters;
@@ -150,6 +183,9 @@ class CatalogController extends ChangeNotifier {
         materials: 'خشب مطلي ومواد مركبة',
       );
       _allItems.add(item);
+      if (_comparisonIds.contains(item.id)) {
+        _comparisonItems.add(item);
+      }
     }
   }
 }

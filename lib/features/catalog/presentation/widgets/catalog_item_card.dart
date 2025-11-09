@@ -10,12 +10,16 @@ class CatalogItemCard extends StatelessWidget {
     required this.onTap,
     required this.isComparing,
     required this.onCompareToggle,
+    required this.isFavorite,
+    required this.onFavoriteToggle,
   });
 
   final CatalogItem item;
   final VoidCallback onTap;
   final bool isComparing;
   final VoidCallback onCompareToggle;
+  final bool isFavorite;
+  final VoidCallback onFavoriteToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +61,16 @@ class CatalogItemCard extends StatelessWidget {
                           child: Image.network(
                             item.imageUrl,
                             fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 12,
+                        left: 12,
+                        child: IconButton.filled(
+                          onPressed: onFavoriteToggle,
+                          icon: Icon(
+                            isFavorite ? IconlyBold.heart : IconlyLight.heart,
                           ),
                         ),
                       ),
