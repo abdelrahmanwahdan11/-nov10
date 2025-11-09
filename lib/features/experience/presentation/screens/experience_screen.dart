@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:iconly/iconly.dart';
 
 import '../../../../app/app_scope.dart';
 import '../../../../core/controllers/experience_controller.dart';
+import '../../../../core/models/experience_moment.dart';
 import '../../../../core/models/experience_blueprint.dart';
 import '../../../../core/models/item.dart';
+import '../../../../core/models/showroom_scene.dart';
 import '../../../../l10n/app_localizations.dart';
 
 class ExperienceScreen extends StatefulWidget {
@@ -40,6 +44,7 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
           final blueprints = _controller.blueprints;
           final pinned = _controller.pinnedBlueprint;
           final signals = _controller.signals;
+          final chronicle = _controller.chronicle;
           return CustomScrollView(
             padding: const EdgeInsets.only(bottom: 96),
             slivers: [
@@ -57,6 +62,26 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
                     controller: _controller,
                     localization: localization,
                     onSelectItem: widget.onSelectItem,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                  child: _FocusDeck(
+                    controller: _controller,
+                    localization: localization,
+                    onSelectItem: widget.onSelectItem,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 28, 16, 0),
+                  child: _ChronicleSection(
+                    controller: _controller,
+                    localization: localization,
+                    moments: chronicle,
                   ),
                 ),
               ),
@@ -512,6 +537,8 @@ class _PhaseTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final localization = AppLocalizations.of(context);
+    final isFocused = controller.activeFocus?.phaseId == phase.id &&
+        controller.activeFocus?.blueprintId == blueprintId;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -534,6 +561,19 @@ class _PhaseTile extends StatelessWidget {
                     controller.stepPhase(blueprintId, phase.id, step: 0.5),
                 icon: const Icon(IconlyLight.play),
                 tooltip: localization.translate('experience_mark'),
+              ),
+              IconButton(
+                onPressed: isFocused
+                    ? controller.releaseFocus
+                    : () => controller.focusPhase(blueprintId, phase.id),
+                icon: Icon(
+                  isFocused ? IconlyBold.heart : IconlyLight.discovery,
+                ),
+                tooltip: localization.translate(
+                  isFocused
+                      ? 'experience_focus_release'
+                      : 'experience_focus_start',
+                ),
               ),
             ],
           ),
@@ -566,5 +606,422 @@ class _PhaseTile extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _FocusDeck extends StatefulWidget {
+  const _FocusDeck({
+    required this.controller,
+    required this.localization,
+    required this.onSelectItem,
+  });
+
+  final ExperienceController controller;
+  final AppLocalizations localization;
+  final ValueChanged<CatalogItem> onSelectItem;
+
+  @override
+  State<_FocusDeck> createState() => _FocusDeckState();
+}
+
+class _FocusDeckState extends State<_FocusDeck> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final focus = widget.controller.activeFocus;
+    if (focus == null) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          color: theme.colorScheme.surfaceVariant.withOpacity(0.45),
+        ),
+        child: Row(
+          children: [
+            const Icon(IconlyLight.voice),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                widget.localization.translate('experience_focus_empty'),
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    final blueprint = widget.controller.findById(focus.blueprintId);
+    final phase =
+        widget.controller.resolvePhase(focus.blueprintId, focus.phaseId);
+    if (blueprint == null || phase == null) {
+      return const SizedBox.shrink();
+    }
+    final progress =
+        widget.controller.phaseProgress(blueprint.id, phase.id);
+    final items = widget.controller.resolveItems(blueprint);
+    final elapsed = DateTime.now().difference(focus.startedAt);
+    final elapsedLabel =
+        '${elapsed.inMinutes.toString().padLeft(2, '0')}m ${
+            (elapsed.inSeconds % 60).toString().padLeft(2, '0')}s';
+    final isArabic = widget.localization.locale.languageCode == 'ar';
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          colors: [
+            theme.colorScheme.primary.withOpacity(0.28),
+            theme.colorScheme.surface.withOpacity(0.9),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  blueprint.title,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: widget.controller.releaseFocus,
+                icon: const Icon(IconlyLight.close_square),
+                label: Text(
+                  widget.localization.translate('experience_focus_release'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            phase.title,
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            phase.description,
+            style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: LinearProgressIndicator(
+              value: progress == 0 ? null : progress,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              Chip(
+                avatar: const Icon(IconlyLight.time_circle, size: 16),
+                label: Text(
+                  '${widget.localization.translate('experience_focus_elapsed')} $elapsedLabel',
+                ),
+              ),
+              Chip(
+                avatar: const Icon(IconlyLight.calendar, size: 16),
+                label: Text(
+                  focus.startedAt
+                      .toLocal()
+                      .toString()
+                      .split('.')
+                      .first,
+                ),
+              ),
+              Chip(
+                label: Text(
+                  blueprint.focusMood.localizedLabel(isArabic: isArabic),
+                ),
+              ),
+              ...phase.focusTags.map(
+                (tag) => Chip(
+                  label: Text('#$tag'),
+                ),
+              ),
+            ],
+          ),
+          if (items.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 72,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  return GestureDetector(
+                    onTap: () => widget.onSelectItem(item),
+                    child: Container(
+                      width: 140,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        color: theme.colorScheme.surface.withOpacity(0.85),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.name,
+                            style: theme.textTheme.titleSmall,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${item.price.toStringAsFixed(0)} SAR',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemCount: items.length > 4 ? 4 : items.length,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ChronicleSection extends StatelessWidget {
+  const _ChronicleSection({
+    required this.controller,
+    required this.localization,
+    required this.moments,
+  });
+
+  final ExperienceController controller;
+  final AppLocalizations localization;
+  final List<ExperienceMoment> moments;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isArabic = localization.locale.languageCode == 'ar';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(IconlyLight.chart),
+            const SizedBox(width: 8),
+            Text(
+              localization.translate('experience_chronicle_title'),
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (moments.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.45),
+            ),
+            child: Row(
+              children: [
+                const Icon(IconlyLight.document),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    localization.translate('experience_chronicle_empty'),
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          SizedBox(
+            height: 196,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: moments.length > 8 ? 8 : moments.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                final moment = moments[index];
+                final blueprint = controller.findById(moment.blueprintId);
+                final phase = moment.phaseId == null
+                    ? null
+                    : controller.resolvePhase(
+                        moment.blueprintId,
+                        moment.phaseId!,
+                      );
+                final accent = _accentFor(moment.kind, theme);
+                return Container(
+                  width: 240,
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    color: accent.withOpacity(0.08),
+                    border: Border.all(color: accent.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: accent.withOpacity(0.18),
+                            child: Icon(
+                              _iconFor(moment.kind),
+                              color: accent,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              _labelFor(moment.kind),
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            _formatTime(moment.timestamp),
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        blueprint?.title ?? moment.title,
+                        style: theme.textTheme.titleMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (phase != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          phase.title,
+                          style: theme.textTheme.bodyMedium,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      Text(
+                        moment.detail,
+                        style: theme.textTheme.bodyMedium,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const Spacer(),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          Chip(
+                            label: Text(
+                              (blueprint?.focusMood ?? SceneMood.serene)
+                                  .localizedLabel(isArabic: isArabic),
+                            ),
+                          ),
+                          if (phase != null)
+                            ActionChip(
+                              avatar:
+                                  const Icon(IconlyLight.discovery, size: 18),
+                              label: Text(
+                                localization
+                                    .translate('experience_focus_start'),
+                              ),
+                              onPressed: () => controller.focusPhase(
+                                moment.blueprintId,
+                                phase.id,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+
+  IconData _iconFor(ExperienceMomentKind kind) {
+    switch (kind) {
+      case ExperienceMomentKind.pulse:
+        return IconlyLight.activity;
+      case ExperienceMomentKind.progress:
+        return IconlyLight.tick_square;
+      case ExperienceMomentKind.focus:
+        return IconlyLight.discovery;
+      case ExperienceMomentKind.reflection:
+        return IconlyLight.paper;
+    }
+  }
+
+  Color _accentFor(ExperienceMomentKind kind, ThemeData theme) {
+    switch (kind) {
+      case ExperienceMomentKind.pulse:
+        return theme.colorScheme.secondary;
+      case ExperienceMomentKind.progress:
+        return theme.colorScheme.primary;
+      case ExperienceMomentKind.focus:
+        return theme.colorScheme.tertiary;
+      case ExperienceMomentKind.reflection:
+        return theme.colorScheme.error;
+    }
+  }
+
+  String _labelFor(ExperienceMomentKind kind) {
+    switch (kind) {
+      case ExperienceMomentKind.pulse:
+        return localization.translate('experience_moment_pulse');
+      case ExperienceMomentKind.progress:
+        return localization.translate('experience_moment_progress');
+      case ExperienceMomentKind.focus:
+        return localization.translate('experience_moment_focus');
+      case ExperienceMomentKind.reflection:
+        return localization.translate('experience_moment_reflection');
+    }
+  }
+
+  String _formatTime(DateTime timestamp) {
+    final local = timestamp.toLocal();
+    final hours = local.hour.toString().padLeft(2, '0');
+    final minutes = local.minute.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    final day = local.day.toString().padLeft(2, '0');
+    return '$month/$day · $hours:$minutes';
   }
 }

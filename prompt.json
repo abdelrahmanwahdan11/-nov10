@@ -64,7 +64,9 @@
     "SearchBar": "Debounced search tied to catalog results",
     "FilterSheet": "Modal bottom sheet with segmented filters and range sliders",
     "AIHintButton": "Outlined button with icon and tooltip that will later connect to AI service",
-    "ExperiencePulseBanner": "Live bilingual ticker showing blueprint pulses and highlighting related items"
+    "ExperiencePulseBanner": "Live bilingual ticker showing blueprint pulses and highlighting related items",
+    "FocusDeck": "Phase focus controller with elapsed timer, mood chip, and quick release stored via shared_preferences",
+    "ChronicleTimeline": "Horizontal timeline of stored moments (pulses, progress, reflections) with direct refocus actions"
   ],
   "modules": [
     {
@@ -194,7 +196,9 @@
             "List of blueprints with expandable phases, per-phase progress controls, and pin/unpin actions",
             "Phase tiles expose estimated minutes, focus tags, and action buttons to open immersive viewer",
             "RefreshIndicator clears cached progress and regenerates localized pulses",
-            "Stream-based ticker animates when new signals are emitted"
+            "Stream-based ticker animates when new signals are emitted",
+            "FocusDeck surfaces the active phase with elapsed timer, related catalog items, and release control persisted locally",
+            "ChronicleTimeline shows stored pulses/progress/reflection moments with bilingual labels and quick refocus shortcuts"
           ]
         }
       ]

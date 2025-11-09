@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../models/experience_blueprint.dart';
+import '../models/experience_moment.dart';
 import '../models/item.dart';
 import '../models/showroom_scene.dart';
 import '../services/app_preferences.dart';
@@ -43,11 +44,15 @@ class ExperienceController extends ChangeNotifier {
       StreamController<ExperienceSignal>.broadcast();
   final Random _random = Random(8);
   Timer? _pulseTimer;
+  final List<ExperienceMoment> _chronicle = <ExperienceMoment>[];
+  ExperienceFocus? _activeFocus;
 
   List<ExperienceBlueprint> get blueprints => List.unmodifiable(_blueprints);
   ExperienceBlueprint? get pinnedBlueprint => _pinned;
   List<ExperienceSignal> get signals => List.unmodifiable(_signals);
   Stream<ExperienceSignal> get pulseStream => _signalController.stream;
+  List<ExperienceMoment> get chronicle => List.unmodifiable(_chronicle);
+  ExperienceFocus? get activeFocus => _activeFocus;
 
   double blueprintProgress(ExperienceBlueprint blueprint) {
     return blueprint.progress(_getPhaseProgress);
@@ -81,6 +86,17 @@ class ExperienceController extends ChangeNotifier {
     }
     _pinned = blueprint;
     unawaited(_preferences.setPinnedBlueprintId(blueprint.id));
+    _recordMoment(
+      ExperienceMoment(
+        id: 'focus_${blueprint.id}_${DateTime.now().millisecondsSinceEpoch}',
+        blueprintId: blueprint.id,
+        kind: ExperienceMomentKind.focus,
+        title: blueprint.title,
+        detail: blueprint.subtitle,
+        timestamp: DateTime.now(),
+        mood: blueprint.focusMood,
+      ),
+    );
     _emitPulse(force: true);
     notifyListeners();
   }
@@ -97,6 +113,39 @@ class ExperienceController extends ChangeNotifier {
     final next = (_getPhaseProgress(key) + step).clamp(0, 1);
     _phaseProgress[key] = next;
     unawaited(_preferences.setExperiencePhaseProgress(key, next));
+    final blueprint = findById(blueprintId);
+    final phase = blueprint == null ? null : _findPhase(blueprint, phaseId);
+    if (blueprint != null && phase != null) {
+      _recordMoment(
+        ExperienceMoment(
+          id: 'progress_${phase.id}_${DateTime.now().millisecondsSinceEpoch}',
+          blueprintId: blueprintId,
+          phaseId: phaseId,
+          kind: ExperienceMomentKind.progress,
+          title: phase.title,
+          detail: '${(next * 100).clamp(0, 100).toStringAsFixed(0)}%',
+          timestamp: DateTime.now(),
+          mood: blueprint.focusMood,
+        ),
+      );
+      if (next >= 1 &&
+          _activeFocus?.phaseId == phaseId &&
+          _activeFocus?.blueprintId == blueprintId) {
+        _recordMoment(
+          ExperienceMoment(
+            id: 'reflection_${phase.id}_${DateTime.now().millisecondsSinceEpoch}',
+            blueprintId: blueprintId,
+            phaseId: phaseId,
+            kind: ExperienceMomentKind.reflection,
+            title: phase.title,
+            detail: phase.description,
+            timestamp: DateTime.now(),
+            mood: blueprint.focusMood,
+          ),
+        );
+        releaseFocus(recordMoment: false);
+      }
+    }
     notifyListeners();
   }
 
@@ -106,6 +155,10 @@ class ExperienceController extends ChangeNotifier {
     _phaseProgress.clear();
     final keys = _blueprints.expand((blueprint) => blueprint.phaseKeys);
     await _preferences.resetExperiencePhases(keys);
+    _chronicle.clear();
+    await _preferences.clearExperienceChronicle();
+    await _preferences.setExperienceFocus(null);
+    _activeFocus = null;
     _emitPulse(force: true);
     notifyListeners();
   }
@@ -172,6 +225,17 @@ class ExperienceController extends ChangeNotifier {
       _signals.removeRange(8, _signals.length);
     }
     _signalController.add(signal);
+    _recordMoment(
+      ExperienceMoment(
+        id: signal.id,
+        blueprintId: blueprint.id,
+        kind: ExperienceMomentKind.pulse,
+        title: headline,
+        detail: body,
+        timestamp: signal.generatedAt,
+        mood: blueprint.focusMood,
+      ),
+    );
     notifyListeners();
   }
 
@@ -180,12 +244,122 @@ class ExperienceController extends ChangeNotifier {
     if (pinnedId != null) {
       _pinned = findById(pinnedId);
     }
+    final chronicleEntries = _preferences.getExperienceChronicle();
+    _chronicle
+      ..clear()
+      ..addAll(
+        chronicleEntries
+            .map(ExperienceMoment.fromEncoded)
+            .toList()
+          ..sort((a, b) => b.timestamp.compareTo(a.timestamp)),
+      );
+    final focusEncoded = _preferences.getExperienceFocus();
+    if (focusEncoded != null) {
+      final focus = ExperienceFocus.fromEncoded(focusEncoded);
+      if (findById(focus.blueprintId) != null) {
+        _activeFocus = focus;
+      }
+    }
     for (final blueprint in _blueprints) {
       for (final key in blueprint.phaseKeys) {
         _getPhaseProgress(key);
       }
     }
     _emitPulse(force: true);
+  }
+
+  void focusPhase(String blueprintId, String phaseId) {
+    final blueprint = findById(blueprintId);
+    if (blueprint == null) {
+      return;
+    }
+    final phase = _findPhase(blueprint, phaseId);
+    if (phase == null) {
+      return;
+    }
+    if (_activeFocus != null) {
+      releaseFocus();
+    }
+    final focus = ExperienceFocus(
+      blueprintId: blueprintId,
+      phaseId: phaseId,
+      startedAt: DateTime.now(),
+    );
+    _activeFocus = focus;
+    unawaited(_preferences.setExperienceFocus(focus.encode()));
+    _recordMoment(
+      ExperienceMoment(
+        id: 'focus_${phase.id}_${focus.startedAt.millisecondsSinceEpoch}',
+        blueprintId: blueprintId,
+        phaseId: phaseId,
+        kind: ExperienceMomentKind.focus,
+        title: phase.title,
+        detail: blueprint.subtitle,
+        timestamp: focus.startedAt,
+        mood: blueprint.focusMood,
+      ),
+    );
+    notifyListeners();
+  }
+
+  void releaseFocus({bool recordMoment = true}) {
+    final focus = _activeFocus;
+    if (focus == null) {
+      return;
+    }
+    final blueprint = findById(focus.blueprintId);
+    final phase = blueprint == null
+        ? null
+        : _findPhase(blueprint, focus.phaseId);
+    _activeFocus = null;
+    unawaited(_preferences.setExperienceFocus(null));
+    if (recordMoment && blueprint != null && phase != null) {
+      _recordMoment(
+        ExperienceMoment(
+          id: 'reflection_${phase.id}_${DateTime.now().millisecondsSinceEpoch}',
+          blueprintId: blueprint.id,
+          phaseId: phase.id,
+          kind: ExperienceMomentKind.reflection,
+          title: phase.title,
+          detail: blueprint.title,
+          timestamp: DateTime.now(),
+          mood: blueprint.focusMood,
+        ),
+      );
+    }
+    notifyListeners();
+  }
+
+  ExperiencePhase? resolvePhase(String blueprintId, String phaseId) {
+    final blueprint = findById(blueprintId);
+    if (blueprint == null) {
+      return null;
+    }
+    return _findPhase(blueprint, phaseId);
+  }
+
+  ExperiencePhase? _findPhase(
+    ExperienceBlueprint blueprint,
+    String phaseId,
+  ) {
+    try {
+      return blueprint.phases.firstWhere((phase) => phase.id == phaseId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _recordMoment(ExperienceMoment moment) {
+    _chronicle.removeWhere((existing) => existing.id == moment.id);
+    _chronicle.insert(0, moment);
+    if (_chronicle.length > 24) {
+      _chronicle.removeRange(24, _chronicle.length);
+    }
+    unawaited(
+      _preferences.setExperienceChronicle(
+        _chronicle.map((entry) => entry.encode()).toList(),
+      ),
+    );
   }
 
   void _seedBlueprints() {

@@ -12,6 +12,8 @@ class AppPreferences {
   static const _showroomSceneKey = 'showroom_scene';
   static const _pinnedBlueprintKey = 'pinned_blueprint_id';
   static const _experiencePhasePrefix = 'experience_phase_';
+  static const _experienceChronicleKey = 'experience_chronicle';
+  static const _experienceFocusKey = 'experience_focus';
 
   late final SharedPreferences _prefs;
 
@@ -124,6 +126,28 @@ class AppPreferences {
   Future<void> resetExperiencePhases(Iterable<String> keys) async {
     for (final key in keys) {
       await _prefs.remove('$_experiencePhasePrefix$key');
+    }
+  }
+
+  List<String> getExperienceChronicle() {
+    return _prefs.getStringList(_experienceChronicleKey) ?? <String>[];
+  }
+
+  Future<void> setExperienceChronicle(List<String> entries) async {
+    await _prefs.setStringList(_experienceChronicleKey, entries);
+  }
+
+  Future<void> clearExperienceChronicle() async {
+    await _prefs.remove(_experienceChronicleKey);
+  }
+
+  String? getExperienceFocus() => _prefs.getString(_experienceFocusKey);
+
+  Future<void> setExperienceFocus(String? encoded) async {
+    if (encoded == null) {
+      await _prefs.remove(_experienceFocusKey);
+    } else {
+      await _prefs.setString(_experienceFocusKey, encoded);
     }
   }
 }
