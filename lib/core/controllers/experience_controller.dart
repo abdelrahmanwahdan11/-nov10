@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../models/experience_blueprint.dart';
+import '../models/experience_constellation.dart';
 import '../models/experience_moment.dart';
 import '../models/experience_orbit.dart';
 import '../models/item.dart';
@@ -22,6 +23,7 @@ class ExperienceController extends ChangeNotifier {
         _preferences = preferences {
     _catalogListener = () {
       _emitPulse();
+      _syncConstellations();
       notifyListeners();
     };
     _showroomListener = notifyListeners;
@@ -31,6 +33,7 @@ class ExperienceController extends ChangeNotifier {
     _restoreState();
     _schedulePulse();
     _scheduleOrbitCycle();
+    _scheduleConstellationDrift();
   }
 
   final CatalogController _catalogController;
@@ -51,6 +54,10 @@ class ExperienceController extends ChangeNotifier {
   final List<ExperienceOrbit> _orbits = <ExperienceOrbit>[];
   ExperienceOrbit? _activeOrbit;
   Timer? _orbitTimer;
+  final List<ExperienceConstellation> _constellations =
+      <ExperienceConstellation>[];
+  ExperienceConstellation? _activeConstellation;
+  Timer? _constellationTimer;
 
   List<ExperienceBlueprint> get blueprints => List.unmodifiable(_blueprints);
   ExperienceBlueprint? get pinnedBlueprint => _pinned;
@@ -60,6 +67,9 @@ class ExperienceController extends ChangeNotifier {
   ExperienceFocus? get activeFocus => _activeFocus;
   List<ExperienceOrbit> get orbits => List.unmodifiable(_orbits);
   ExperienceOrbit? get activeOrbit => _activeOrbit;
+  List<ExperienceConstellation> get constellations =>
+      List.unmodifiable(_constellations);
+  ExperienceConstellation? get activeConstellation => _activeConstellation;
 
   double blueprintProgress(ExperienceBlueprint blueprint) {
     return blueprint.progress(_getPhaseProgress);
@@ -93,6 +103,36 @@ class ExperienceController extends ChangeNotifier {
       return const <CatalogItem>[];
     }
     return resolveItems(blueprint);
+  }
+
+  List<CatalogItem> resolveConstellationItems(
+    ExperienceConstellation constellation,
+  ) {
+    final seen = <String>{};
+    final items = <CatalogItem>[];
+    for (final blueprintId in constellation.blueprintIds) {
+      final blueprint = findById(blueprintId);
+      if (blueprint == null) {
+        continue;
+      }
+      for (final itemId in blueprint.relatedItemIds) {
+        if (seen.add(itemId)) {
+          final item = _catalogController.findById(itemId);
+          if (item != null) {
+            items.add(item);
+          }
+        }
+      }
+    }
+    for (final itemId in constellation.anchorItemIds) {
+      if (seen.add(itemId)) {
+        final item = _catalogController.findById(itemId);
+        if (item != null) {
+          items.add(item);
+        }
+      }
+    }
+    return items;
   }
 
   void activateOrbit(ExperienceOrbit orbit, {bool manual = true}) {
@@ -141,6 +181,65 @@ class ExperienceController extends ChangeNotifier {
         : _orbits.indexWhere((orbit) => orbit.id == _activeOrbit!.id);
     final nextIndex = (currentIndex + 1) % _orbits.length;
     activateOrbit(_orbits[nextIndex], manual: manual);
+  }
+
+  void alignConstellation(ExperienceConstellation constellation,
+      {bool manual = true}) {
+    final index =
+        _constellations.indexWhere((entry) => entry.id == constellation.id);
+    if (index == -1) {
+      return;
+    }
+    if (_activeConstellation?.id == constellation.id && !manual) {
+      return;
+    }
+    final now = DateTime.now();
+    final resolved = _constellations[index]
+        .copyWith(anchorItemIds: _collectAnchorItems(constellation.blueprintIds));
+    final synergy = _calculateConstellationSynergy(resolved);
+    final updated = resolved.copyWith(
+      synergy: synergy,
+      lastAligned: now,
+    );
+    _constellations[index] = updated;
+    _activeConstellation = updated;
+    _persistConstellations();
+    unawaited(_preferences.setActiveConstellationId(updated.id));
+    final orbitLookup = {for (final orbit in _orbits) orbit.id: orbit};
+    final energy = updated.energy(orbitLookup);
+    final headline = manual
+        ? 'Constellation aligned • محاذاة الكوكبة'
+        : 'Constellation drift • انجراف الكوكبة';
+    final detail =
+        '${updated.title} ${(energy * 100).toStringAsFixed(0)}% • طاقة الكوكبة';
+    final anchorBlueprintId = updated.blueprintIds.isNotEmpty
+        ? updated.blueprintIds.first
+        : (_blueprints.isNotEmpty ? _blueprints.first.id : 'bp_serenity');
+    _recordMoment(
+      ExperienceMoment(
+        id: 'constellation_${updated.id}_${now.millisecondsSinceEpoch}',
+        blueprintId: anchorBlueprintId,
+        kind: ExperienceMomentKind.constellation,
+        title: headline,
+        detail: detail,
+        timestamp: now,
+        mood: _resolveConstellationMood(updated),
+      ),
+    );
+    _scheduleConstellationDrift();
+    notifyListeners();
+  }
+
+  void cycleConstellation({bool manual = false}) {
+    if (_constellations.isEmpty) {
+      return;
+    }
+    final currentIndex = _activeConstellation == null
+        ? -1
+        : _constellations
+            .indexWhere((entry) => entry.id == _activeConstellation!.id);
+    final nextIndex = (currentIndex + 1) % _constellations.length;
+    alignConstellation(_constellations[nextIndex], manual: manual);
   }
 
   void pinBlueprint(ExperienceBlueprint blueprint) {
@@ -232,8 +331,14 @@ class ExperienceController extends ChangeNotifier {
     _resetOrbits();
     await _preferences.clearExperienceOrbits();
     await _preferences.setActiveOrbitId(null);
+    _constellations.clear();
+    _activeConstellation = null;
+    await _preferences.clearExperienceConstellations();
+    await _preferences.setActiveConstellationId(null);
     _initializeOrbits();
+    _initializeConstellations();
     _scheduleOrbitCycle();
+    _scheduleConstellationDrift();
     _emitPulse(force: true);
     notifyListeners();
   }
@@ -262,6 +367,17 @@ class ExperienceController extends ChangeNotifier {
     _orbitTimer = Timer(const Duration(seconds: 16), () {
       cycleOrbit();
       _scheduleOrbitCycle();
+    });
+  }
+
+  void _scheduleConstellationDrift() {
+    _constellationTimer?.cancel();
+    if (_constellations.isEmpty) {
+      return;
+    }
+    _constellationTimer = Timer(const Duration(seconds: 28), () {
+      cycleConstellation();
+      _scheduleConstellationDrift();
     });
   }
 
@@ -360,6 +476,7 @@ class ExperienceController extends ChangeNotifier {
       }
     }
     _initializeOrbits();
+    _initializeConstellations();
     _emitPulse(force: true);
   }
 
@@ -517,10 +634,90 @@ class ExperienceController extends ChangeNotifier {
     );
   }
 
+  void _initializeConstellations() {
+    final stored = _preferences.getExperienceConstellations();
+    final restored = stored
+        .map(ExperienceConstellation.fromEncoded)
+        .fold<Map<String, ExperienceConstellation>>(
+            <String, ExperienceConstellation>{}, (map, constellation) {
+      map[constellation.id] = constellation;
+      return map;
+    });
+    final defaults = <ExperienceConstellation>[
+      ExperienceConstellation(
+        id: 'constellation_flux',
+        title: 'Serenity Flux',
+        blueprintIds: const ['bp_serenity', 'bp_pulse'],
+        moods: const [SceneMood.serene, SceneMood.vibrant],
+        anchorItemIds: _collectAnchorItems(
+          const ['bp_serenity', 'bp_pulse'],
+        ),
+      ),
+      ExperienceConstellation(
+        id: 'constellation_vector',
+        title: 'Vector Bloom',
+        blueprintIds: const ['bp_serenity', 'bp_quantum'],
+        moods: const [SceneMood.serene, SceneMood.futuristic],
+        anchorItemIds: _collectAnchorItems(
+          const ['bp_serenity', 'bp_quantum'],
+        ),
+      ),
+      ExperienceConstellation(
+        id: 'constellation_pulse',
+        title: 'Pulse Nexus',
+        blueprintIds: const ['bp_pulse', 'bp_quantum'],
+        moods: const [SceneMood.vibrant, SceneMood.futuristic],
+        anchorItemIds: _collectAnchorItems(
+          const ['bp_pulse', 'bp_quantum'],
+        ),
+      ),
+    ];
+    _constellations
+      ..clear()
+      ..addAll(defaults.map((entry) {
+        final restoredEntry = restored[entry.id];
+        final withAnchors = entry.copyWith(
+          anchorItemIds: _collectAnchorItems(entry.blueprintIds),
+        );
+        final synergy = restoredEntry == null
+            ? _calculateConstellationSynergy(withAnchors)
+            : restoredEntry.synergy;
+        return withAnchors.copyWith(
+          synergy: synergy,
+          lastAligned: restoredEntry?.lastAligned,
+        );
+      }));
+    _syncConstellations(persist: false);
+    final activeId = _preferences.getActiveConstellationId();
+    if (activeId != null) {
+      try {
+        _activeConstellation =
+            _constellations.firstWhere((entry) => entry.id == activeId);
+      } catch (_) {
+        _activeConstellation = null;
+      }
+    }
+    if (_activeConstellation == null && _constellations.isNotEmpty) {
+      _activeConstellation = _constellations.first;
+    }
+    _persistConstellations();
+    unawaited(
+      _preferences.setActiveConstellationId(_activeConstellation?.id),
+    );
+  }
+
   void _persistOrbits() {
     unawaited(
       _preferences.setExperienceOrbits(
         _orbits.map((orbit) => orbit.encode()).toList(),
+      ),
+    );
+  }
+
+  void _persistConstellations() {
+    unawaited(
+      _preferences.setExperienceConstellations(
+        _constellations.map((entry) => entry.encode()).toList(),
       ),
     );
   }
@@ -540,6 +737,7 @@ class ExperienceController extends ChangeNotifier {
       _activeOrbit = updated;
     }
     _persistOrbits();
+    _syncConstellations();
   }
 
   double _calculateBlueprintCompletion(ExperienceBlueprint blueprint) {
@@ -586,6 +784,105 @@ class ExperienceController extends ChangeNotifier {
     _activeOrbit = null;
     _persistOrbits();
     unawaited(_preferences.setActiveOrbitId(null));
+  }
+
+  void _syncConstellations({bool persist = true}) {
+    if (_constellations.isEmpty) {
+      return;
+    }
+    var changed = false;
+    for (var i = 0; i < _constellations.length; i++) {
+      final base = _constellations[i];
+      final anchorUpdated = base.copyWith(
+        anchorItemIds: _collectAnchorItems(base.blueprintIds),
+      );
+      final synergy = _calculateConstellationSynergy(anchorUpdated);
+      final recalculated = anchorUpdated.copyWith(synergy: synergy);
+      final anchorChanged = !_listMatches(
+        base.anchorItemIds,
+        recalculated.anchorItemIds,
+      );
+      if (anchorChanged || (recalculated.synergy - base.synergy).abs() > 0.001) {
+        _constellations[i] = recalculated;
+        if (_activeConstellation?.id == recalculated.id) {
+          _activeConstellation = recalculated;
+        }
+        changed = true;
+      }
+    }
+    if (persist && changed) {
+      _persistConstellations();
+    }
+  }
+
+  List<String> _collectAnchorItems(List<String> blueprintIds) {
+    final seen = <String>{};
+    for (final blueprintId in blueprintIds) {
+      final blueprint = findById(blueprintId);
+      if (blueprint == null) {
+        continue;
+      }
+      for (final itemId in blueprint.relatedItemIds) {
+        if (seen.length >= 6) {
+          break;
+        }
+        seen.add(itemId);
+      }
+    }
+    final favorites = _catalogController.favoriteIds;
+    final prioritized = seen.toList()
+      ..sort((a, b) {
+        final aFav = favorites.contains(a);
+        final bFav = favorites.contains(b);
+        if (aFav == bFav) {
+          return a.compareTo(b);
+        }
+        return aFav ? -1 : 1;
+      });
+    return prioritized.take(6).toList();
+  }
+
+  double _calculateConstellationSynergy(
+      ExperienceConstellation constellation) {
+    final completionScores = constellation.blueprintIds
+        .map(findById)
+        .whereType<ExperienceBlueprint>()
+        .map(_calculateBlueprintCompletion)
+        .toList();
+    final completionScore = completionScores.isEmpty
+        ? 0
+        : completionScores.reduce((value, element) => value + element) /
+            completionScores.length;
+    final favorites = _catalogController.favoriteIds;
+    final anchorMatches = constellation.anchorItemIds
+        .where((itemId) => favorites.contains(itemId))
+        .length;
+    final anchorScore = constellation.anchorItemIds.isEmpty
+        ? 0
+        : anchorMatches / constellation.anchorItemIds.length;
+    return (completionScore * 0.6 + anchorScore * 0.4).clamp(0, 1);
+  }
+
+  SceneMood _resolveConstellationMood(ExperienceConstellation constellation) {
+    if (constellation.moods.isNotEmpty) {
+      return constellation.moods.first;
+    }
+    return SceneMood.serene;
+  }
+
+  bool _listMatches(List<String> a, List<String> b) {
+    if (identical(a, b)) {
+      return true;
+    }
+    if (a.length != b.length) {
+      return false;
+    }
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) {
+        return false;
+      }
+    }
+    return true;
   }
 
   void _seedBlueprints() {
@@ -707,6 +1004,7 @@ class ExperienceController extends ChangeNotifier {
   void dispose() {
     _pulseTimer?.cancel();
     _orbitTimer?.cancel();
+    _constellationTimer?.cancel();
     _catalogController.removeListener(_catalogListener);
     _showroomController.removeListener(_showroomListener);
     _signalController.close();

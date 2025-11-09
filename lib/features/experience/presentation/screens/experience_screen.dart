@@ -5,6 +5,7 @@ import 'package:iconly/iconly.dart';
 
 import '../../../../app/app_scope.dart';
 import '../../../../core/controllers/experience_controller.dart';
+import '../../../../core/models/experience_constellation.dart';
 import '../../../../core/models/experience_moment.dart';
 import '../../../../core/models/experience_blueprint.dart';
 import '../../../../core/models/experience_orbit.dart';
@@ -48,6 +49,8 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
           final chronicle = _controller.chronicle;
           final orbits = _controller.orbits;
           final activeOrbit = _controller.activeOrbit;
+          final constellations = _controller.constellations;
+          final activeConstellation = _controller.activeConstellation;
           return CustomScrollView(
             padding: const EdgeInsets.only(bottom: 96),
             slivers: [
@@ -74,6 +77,18 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
                   child: _OrbitNavigator(
                     orbits: orbits,
                     activeOrbit: activeOrbit,
+                    controller: _controller,
+                    localization: localization,
+                    onSelectItem: widget.onSelectItem,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+                  child: _ConstellationDeck(
+                    constellations: constellations,
+                    activeConstellation: activeConstellation,
                     controller: _controller,
                     localization: localization,
                     onSelectItem: widget.onSelectItem,
@@ -531,6 +546,289 @@ class _OrbitEmptyState extends StatelessWidget {
           Expanded(
             child: Text(
               localization.translate('experience_orbits_empty'),
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConstellationDeck extends StatelessWidget {
+  const _ConstellationDeck({
+    required this.constellations,
+    required this.activeConstellation,
+    required this.controller,
+    required this.localization,
+    required this.onSelectItem,
+  });
+
+  final List<ExperienceConstellation> constellations;
+  final ExperienceConstellation? activeConstellation;
+  final ExperienceController controller;
+  final AppLocalizations localization;
+  final ValueChanged<CatalogItem> onSelectItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final orbitLookup = {for (final orbit in controller.orbits) orbit.id: orbit};
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    localization.translate('experience_constellations_title'),
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    localization
+                        .translate('experience_constellations_subtitle'),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.hintColor),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: constellations.isEmpty
+                  ? null
+                  : () => controller.cycleConstellation(manual: true),
+              tooltip:
+                  localization.translate('experience_constellation_cycle'),
+              icon: const Icon(IconlyLight.swap),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (constellations.isEmpty)
+          _ConstellationEmptyState(localization: localization)
+        else
+          SizedBox(
+            height: 212,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: constellations.length,
+              itemBuilder: (context, index) {
+                final constellation = constellations[index];
+                final isActive = activeConstellation?.id == constellation.id;
+                return _ConstellationCard(
+                  constellation: constellation,
+                  isActive: isActive,
+                  controller: controller,
+                  localization: localization,
+                  orbitLookup: orbitLookup,
+                  onSelectItem: onSelectItem,
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ConstellationCard extends StatelessWidget {
+  const _ConstellationCard({
+    required this.constellation,
+    required this.isActive,
+    required this.controller,
+    required this.localization,
+    required this.orbitLookup,
+    required this.onSelectItem,
+  });
+
+  final ExperienceConstellation constellation;
+  final bool isActive;
+  final ExperienceController controller;
+  final AppLocalizations localization;
+  final Map<String, ExperienceOrbit> orbitLookup;
+  final ValueChanged<CatalogItem> onSelectItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final energy = constellation.energy(orbitLookup).clamp(0.0, 1.0);
+    final synergyPercent = (constellation.synergy * 100).clamp(0, 100);
+    final items = controller
+        .resolveConstellationItems(constellation)
+        .take(3)
+        .toList();
+    final lastAligned = constellation.lastAligned;
+    final materialLocalizations = MaterialLocalizations.of(context);
+    final mediaQuery = MediaQuery.of(context);
+    final lastLabel = lastAligned == null
+        ? localization.translate('experience_constellation_last_never')
+        : '${localization.translate('experience_constellation_last')} '
+            '${materialLocalizations.formatMediumDate(lastAligned)} · '
+            '${materialLocalizations.formatTimeOfDay(
+              TimeOfDay.fromDateTime(lastAligned),
+              alwaysUse24HourFormat: mediaQuery.alwaysUse24HourFormat,
+            )}';
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
+      width: 292,
+      margin: const EdgeInsets.only(right: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          colors: isActive
+              ? [
+                  theme.colorScheme.primary.withOpacity(0.24),
+                  theme.colorScheme.secondary.withOpacity(0.16),
+                ]
+              : [
+                  theme.colorScheme.surface.withOpacity(0.72),
+                  theme.colorScheme.surfaceVariant.withOpacity(0.44),
+                ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(
+          color: theme.colorScheme.primary.withOpacity(isActive ? 0.9 : 0.25),
+          width: isActive ? 2 : 1.2,
+        ),
+        boxShadow: [
+          if (isActive)
+            BoxShadow(
+              color: theme.colorScheme.primary.withOpacity(0.18),
+              blurRadius: 20,
+              offset: const Offset(0, 16),
+            ),
+        ],
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(28),
+          onTap: () => controller.alignConstellation(constellation, manual: true),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        constellation.title,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Icon(
+                      IconlyBold.star,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '${localization.translate('experience_constellation_energy')} '
+                  '${(energy * 100).toStringAsFixed(0)}%',
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: LinearProgressIndicator(
+                    value: energy.clamp(0.05, 1),
+                    minHeight: 6,
+                    backgroundColor:
+                        theme.colorScheme.onSurface.withOpacity(0.08),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      theme.colorScheme.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${localization.translate('experience_constellation_synergy')} '
+                  '${synergyPercent.toStringAsFixed(0)}%',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.hintColor),
+                ),
+                const SizedBox(height: 12),
+                if (items.isNotEmpty)
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: items
+                        .map(
+                          (item) => ActionChip(
+                            avatar: const Icon(IconlyLight.image, size: 18),
+                            label: Text(item.name),
+                            onPressed: () => onSelectItem(item),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                const Spacer(),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      lastLabel,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.hintColor),
+                    ),
+                    TextButton(
+                      onPressed: () =>
+                          controller.alignConstellation(constellation, manual: true),
+                      child: Text(
+                        localization
+                            .translate('experience_constellation_align'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ConstellationEmptyState extends StatelessWidget {
+  const _ConstellationEmptyState({required this.localization});
+
+  final AppLocalizations localization;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: theme.colorScheme.surface.withOpacity(0.7),
+        border: Border.all(
+          color: theme.colorScheme.primary.withOpacity(0.18),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(IconlyLight.graph, size: 26),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              localization.translate('experience_constellations_empty'),
               style: theme.textTheme.bodyMedium,
             ),
           ),
@@ -1300,6 +1598,8 @@ class _ChronicleSection extends StatelessWidget {
         return IconlyLight.paper;
       case ExperienceMomentKind.orbit:
         return IconlyLight.location;
+      case ExperienceMomentKind.constellation:
+        return IconlyLight.graph;
     }
   }
 
@@ -1315,6 +1615,8 @@ class _ChronicleSection extends StatelessWidget {
         return theme.colorScheme.error;
       case ExperienceMomentKind.orbit:
         return theme.colorScheme.primaryContainer;
+      case ExperienceMomentKind.constellation:
+        return theme.colorScheme.secondaryContainer;
     }
   }
 
@@ -1330,6 +1632,8 @@ class _ChronicleSection extends StatelessWidget {
         return localization.translate('experience_moment_reflection');
       case ExperienceMomentKind.orbit:
         return localization.translate('experience_moment_orbit');
+      case ExperienceMomentKind.constellation:
+        return localization.translate('experience_moment_constellation');
     }
   }
 

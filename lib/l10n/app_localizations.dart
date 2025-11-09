@@ -77,6 +77,7 @@ class AppLocalizations {
       'experience_moment_focus': 'Focus locked',
       'experience_moment_reflection': 'Reflection',
       'experience_moment_orbit': 'Orbit sync',
+      'experience_moment_constellation': 'Constellation weave',
       'experience_orbits_title': 'Orbit navigator',
       'experience_orbits_subtitle':
           'Cycle immersive journeys and surface synced items.',
@@ -86,6 +87,17 @@ class AppLocalizations {
       'experience_orbit_last_never': 'Not activated yet',
       'experience_orbits_empty':
           'Advance a phase or add favorites to generate dynamic orbits.',
+      'experience_constellations_title': 'Constellation weave',
+      'experience_constellations_subtitle':
+          'Fuse journeys into device-side constellations.',
+      'experience_constellation_cycle': 'Cycle constellation',
+      'experience_constellation_energy': 'Constellation energy',
+      'experience_constellation_synergy': 'Alignment score',
+      'experience_constellation_align': 'Align now',
+      'experience_constellation_last': 'Last weave',
+      'experience_constellation_last_never': 'No weave yet',
+      'experience_constellations_empty':
+          'Grow orbit progress and favorites to unlock constellations.',
     },
     'ar': {
       'app_title': 'كتالوج نيو',
@@ -157,6 +169,7 @@ class AppLocalizations {
       'experience_moment_focus': 'تركيز مثبت',
       'experience_moment_reflection': 'لحظة تأمل',
       'experience_moment_orbit': 'تزامن المدار',
+      'experience_moment_constellation': 'نسيج الكوكبة',
       'experience_orbits_title': 'ملاحة المدارات',
       'experience_orbits_subtitle':
           'تدوير الرحلات الغامرة وإظهار العناصر المتزامنة.',
@@ -166,6 +179,17 @@ class AppLocalizations {
       'experience_orbit_last_never': 'لم يتم التفعيل بعد',
       'experience_orbits_empty':
           'أكمل مرحلة أو أضف مفضلة لتوليد المدارات الديناميكية.',
+      'experience_constellations_title': 'نسيج الكوكبات',
+      'experience_constellations_subtitle':
+          'ادمج الرحلات في كوكبات متزامنة على الجهاز.',
+      'experience_constellation_cycle': 'تبديل الكوكبة',
+      'experience_constellation_energy': 'طاقة الكوكبة',
+      'experience_constellation_synergy': 'مؤشر التآلف',
+      'experience_constellation_align': 'محاذاة الآن',
+      'experience_constellation_last': 'آخر نسيج',
+      'experience_constellation_last_never': 'لم يتم نسج أي كوكبة بعد',
+      'experience_constellations_empty':
+          'طوّر المدارات والمفضلة لفتح الكوكبات المتقدمة.',
     },
   };
 

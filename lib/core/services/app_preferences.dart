@@ -16,6 +16,9 @@ class AppPreferences {
   static const _experienceFocusKey = 'experience_focus';
   static const _experienceOrbitsKey = 'experience_orbits';
   static const _experienceActiveOrbitKey = 'experience_active_orbit';
+  static const _experienceConstellationsKey = 'experience_constellations';
+  static const _experienceActiveConstellationKey =
+      'experience_active_constellation';
 
   late final SharedPreferences _prefs;
 
@@ -172,6 +175,32 @@ class AppPreferences {
       await _prefs.remove(_experienceActiveOrbitKey);
     } else {
       await _prefs.setString(_experienceActiveOrbitKey, id);
+    }
+  }
+
+  List<String> getExperienceConstellations() {
+    return _prefs.getStringList(_experienceConstellationsKey) ?? <String>[];
+  }
+
+  Future<void> setExperienceConstellations(List<String> constellations) async {
+    await _prefs.setStringList(
+      _experienceConstellationsKey,
+      constellations,
+    );
+  }
+
+  Future<void> clearExperienceConstellations() async {
+    await _prefs.remove(_experienceConstellationsKey);
+  }
+
+  String? getActiveConstellationId() =>
+      _prefs.getString(_experienceActiveConstellationKey);
+
+  Future<void> setActiveConstellationId(String? id) async {
+    if (id == null) {
+      await _prefs.remove(_experienceActiveConstellationKey);
+    } else {
+      await _prefs.setString(_experienceActiveConstellationKey, id);
     }
   }
 }
