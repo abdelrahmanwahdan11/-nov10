@@ -98,6 +98,17 @@ class AppLocalizations {
       'experience_constellation_last_never': 'No weave yet',
       'experience_constellations_empty':
           'Grow orbit progress and favorites to unlock constellations.',
+      'experience_horizons_title': 'Horizon bridges',
+      'experience_horizons_subtitle':
+          'Thread constellations into evolving on-device narratives.',
+      'experience_horizon_cycle': 'Cycle horizon',
+      'experience_horizon_intensity': 'Horizon intensity',
+      'experience_horizon_coherence': 'Coherence',
+      'experience_horizon_last': 'Last bridge',
+      'experience_horizon_last_never': 'Not bridged yet',
+      'experience_horizons_empty':
+          'Align more constellations to surface narrative bridges.',
+      'experience_moment_horizon': 'Horizon bridge',
     },
     'ar': {
       'app_title': 'كتالوج نيو',
@@ -190,6 +201,17 @@ class AppLocalizations {
       'experience_constellation_last_never': 'لم يتم نسج أي كوكبة بعد',
       'experience_constellations_empty':
           'طوّر المدارات والمفضلة لفتح الكوكبات المتقدمة.',
+      'experience_horizons_title': 'جسور الأفق',
+      'experience_horizons_subtitle':
+          'انسج الكوكبات في حكايات متجددة داخل الجهاز.',
+      'experience_horizon_cycle': 'تبديل الجسر',
+      'experience_horizon_intensity': 'شدة الجسر',
+      'experience_horizon_coherence': 'الانسجام',
+      'experience_horizon_last': 'آخر جسر',
+      'experience_horizon_last_never': 'لم يتم فتح أي جسر بعد',
+      'experience_horizons_empty':
+          'نسّق المزيد من الكوكبات لإظهار جسور الحكاية.',
+      'experience_moment_horizon': 'جسر الأفق',
     },
   };
 

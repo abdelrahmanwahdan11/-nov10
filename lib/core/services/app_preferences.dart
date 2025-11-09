@@ -19,6 +19,8 @@ class AppPreferences {
   static const _experienceConstellationsKey = 'experience_constellations';
   static const _experienceActiveConstellationKey =
       'experience_active_constellation';
+  static const _experienceHorizonsKey = 'experience_horizons';
+  static const _experienceActiveHorizonKey = 'experience_active_horizon';
 
   late final SharedPreferences _prefs;
 
@@ -201,6 +203,29 @@ class AppPreferences {
       await _prefs.remove(_experienceActiveConstellationKey);
     } else {
       await _prefs.setString(_experienceActiveConstellationKey, id);
+    }
+  }
+
+  List<String> getExperienceHorizons() {
+    return _prefs.getStringList(_experienceHorizonsKey) ?? <String>[];
+  }
+
+  Future<void> setExperienceHorizons(List<String> horizons) async {
+    await _prefs.setStringList(_experienceHorizonsKey, horizons);
+  }
+
+  Future<void> clearExperienceHorizons() async {
+    await _prefs.remove(_experienceHorizonsKey);
+  }
+
+  String? getActiveHorizonId() =>
+      _prefs.getString(_experienceActiveHorizonKey);
+
+  Future<void> setActiveHorizonId(String? id) async {
+    if (id == null) {
+      await _prefs.remove(_experienceActiveHorizonKey);
+    } else {
+      await _prefs.setString(_experienceActiveHorizonKey, id);
     }
   }
 }

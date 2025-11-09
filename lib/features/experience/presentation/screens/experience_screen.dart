@@ -6,6 +6,7 @@ import 'package:iconly/iconly.dart';
 import '../../../../app/app_scope.dart';
 import '../../../../core/controllers/experience_controller.dart';
 import '../../../../core/models/experience_constellation.dart';
+import '../../../../core/models/experience_horizon.dart';
 import '../../../../core/models/experience_moment.dart';
 import '../../../../core/models/experience_blueprint.dart';
 import '../../../../core/models/experience_orbit.dart';
@@ -51,6 +52,8 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
           final activeOrbit = _controller.activeOrbit;
           final constellations = _controller.constellations;
           final activeConstellation = _controller.activeConstellation;
+          final horizons = _controller.horizons;
+          final activeHorizon = _controller.activeHorizon;
           return CustomScrollView(
             padding: const EdgeInsets.only(bottom: 96),
             slivers: [
@@ -89,6 +92,18 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
                   child: _ConstellationDeck(
                     constellations: constellations,
                     activeConstellation: activeConstellation,
+                    controller: _controller,
+                    localization: localization,
+                    onSelectItem: widget.onSelectItem,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+                  child: _HorizonBridge(
+                    horizons: horizons,
+                    activeHorizon: activeHorizon,
                     controller: _controller,
                     localization: localization,
                     onSelectItem: widget.onSelectItem,
@@ -799,6 +814,281 @@ class _ConstellationCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _HorizonBridge extends StatelessWidget {
+  const _HorizonBridge({
+    required this.horizons,
+    required this.activeHorizon,
+    required this.controller,
+    required this.localization,
+    required this.onSelectItem,
+  });
+
+  final List<ExperienceHorizon> horizons;
+  final ExperienceHorizon? activeHorizon;
+  final ExperienceController controller;
+  final AppLocalizations localization;
+  final ValueChanged<CatalogItem> onSelectItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    localization.translate('experience_horizons_title'),
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    localization.translate('experience_horizons_subtitle'),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.hintColor),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed:
+                  horizons.isEmpty ? null : () => controller.cycleHorizon(manual: true),
+              tooltip: localization.translate('experience_horizon_cycle'),
+              icon: const Icon(IconlyLight.discovery),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (horizons.isEmpty)
+          _HorizonEmptyState(localization: localization)
+        else
+          SizedBox(
+            height: 220,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: horizons.length,
+              itemBuilder: (context, index) {
+                final horizon = horizons[index];
+                final isActive = activeHorizon?.id == horizon.id;
+                return _HorizonCard(
+                  horizon: horizon,
+                  isActive: isActive,
+                  controller: controller,
+                  localization: localization,
+                  onSelectItem: onSelectItem,
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _HorizonCard extends StatelessWidget {
+  const _HorizonCard({
+    required this.horizon,
+    required this.isActive,
+    required this.controller,
+    required this.localization,
+    required this.onSelectItem,
+  });
+
+  final ExperienceHorizon horizon;
+  final bool isActive;
+  final ExperienceController controller;
+  final AppLocalizations localization;
+  final ValueChanged<CatalogItem> onSelectItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final intensity = controller.horizonIntensity(horizon).clamp(0.0, 1.0);
+    final coherencePercent =
+        (horizon.coherence * 100).clamp(0, 100).toDouble();
+    final items = controller.resolveHorizonItems(horizon).take(4).toList();
+    final materialLocalizations = MaterialLocalizations.of(context);
+    final mediaQuery = MediaQuery.of(context);
+    final lastExpanded = horizon.lastExpanded;
+    final lastLabel = lastExpanded == null
+        ? localization.translate('experience_horizon_last_never')
+        : '${localization.translate('experience_horizon_last')} '
+            '${materialLocalizations.formatMediumDate(lastExpanded)} · '
+            '${materialLocalizations.formatTimeOfDay(
+              TimeOfDay.fromDateTime(lastExpanded),
+              alwaysUse24HourFormat: mediaQuery.alwaysUse24HourFormat,
+            )}';
+    final moodText = horizon.moodHints.isEmpty
+        ? ''
+        : horizon.moodHints.map((mood) => mood.name).join(' • ');
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
+      width: 292,
+      margin: const EdgeInsets.only(right: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          colors: isActive
+              ? [
+                  theme.colorScheme.primary.withOpacity(0.26),
+                  theme.colorScheme.secondary.withOpacity(0.18),
+                ]
+              : [
+                  theme.colorScheme.surface.withOpacity(0.74),
+                  theme.colorScheme.surfaceVariant.withOpacity(0.44),
+                ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(
+          color: theme.colorScheme.primary.withOpacity(isActive ? 0.9 : 0.28),
+          width: isActive ? 2 : 1.2,
+        ),
+        boxShadow: [
+          if (isActive)
+            BoxShadow(
+              color: theme.colorScheme.primary.withOpacity(0.18),
+              blurRadius: 20,
+              offset: const Offset(0, 16),
+            ),
+        ],
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(28),
+          onTap: () => controller.openHorizon(horizon, manual: true),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            horizon.title,
+                            style: theme.textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          if (moodText.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              moodText,
+                              style: theme.textTheme.bodySmall
+                                  ?.copyWith(color: theme.hintColor),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      isActive ? IconlyBold.discovery : IconlyLight.discovery,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '${localization.translate('experience_horizon_intensity')} ${(intensity * 100).toStringAsFixed(0)}%',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: LinearProgressIndicator(
+                    value: intensity,
+                    minHeight: 6,
+                    backgroundColor:
+                        theme.colorScheme.primary.withOpacity(0.12),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    const Icon(IconlyLight.chart, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${localization.translate('experience_horizon_coherence')} '
+                      '${coherencePercent.toStringAsFixed(0)}%',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: items
+                      .map(
+                        (item) => ActionChip(
+                          label: Text(item.name),
+                          avatar: const Icon(IconlyLight.image, size: 18),
+                          onPressed: () => onSelectItem(item),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const Spacer(),
+                Text(
+                  lastLabel,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.hintColor),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HorizonEmptyState extends StatelessWidget {
+  const _HorizonEmptyState({required this.localization});
+
+  final AppLocalizations localization;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: theme.colorScheme.surface.withOpacity(0.7),
+        border: Border.all(
+          color: theme.colorScheme.primary.withOpacity(0.18),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(IconlyLight.discovery, size: 26),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              localization.translate('experience_horizons_empty'),
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1600,6 +1890,8 @@ class _ChronicleSection extends StatelessWidget {
         return IconlyLight.location;
       case ExperienceMomentKind.constellation:
         return IconlyLight.graph;
+      case ExperienceMomentKind.horizon:
+        return IconlyLight.category;
     }
   }
 
@@ -1617,6 +1909,8 @@ class _ChronicleSection extends StatelessWidget {
         return theme.colorScheme.primaryContainer;
       case ExperienceMomentKind.constellation:
         return theme.colorScheme.secondaryContainer;
+      case ExperienceMomentKind.horizon:
+        return theme.colorScheme.surfaceTint;
     }
   }
 
@@ -1634,6 +1928,8 @@ class _ChronicleSection extends StatelessWidget {
         return localization.translate('experience_moment_orbit');
       case ExperienceMomentKind.constellation:
         return localization.translate('experience_moment_constellation');
+      case ExperienceMomentKind.horizon:
+        return localization.translate('experience_moment_horizon');
     }
   }
 

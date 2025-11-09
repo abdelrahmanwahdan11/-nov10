@@ -9,6 +9,7 @@ enum ExperienceMomentKind {
   reflection,
   orbit,
   constellation,
+  horizon,
 }
 
 class ExperienceMoment {

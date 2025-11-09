@@ -68,7 +68,8 @@
     "FocusDeck": "Phase focus controller with elapsed timer, mood chip, and quick release stored via shared_preferences",
     "ChronicleTimeline": "Horizontal timeline of stored moments (pulses, progress, reflections) with direct refocus actions",
     "OrbitNavigator": "Horizontal orbit deck with intensity meter, manual/auto cycling, and quick item chips persisted via shared_preferences",
-    "ConstellationDeck": "Constellation weave displaying energy, synergy, anchor items, and align controls with local persistence"
+    "ConstellationDeck": "Constellation weave displaying energy, synergy, anchor items, and align controls with local persistence",
+    "HorizonBridge": "Horizon bridges fusing constellations with coherence meters, intensity sweeps, blended mood chips, and shared_preferences state"
   ],
   "modules": [
     {
@@ -202,7 +203,8 @@
             "FocusDeck surfaces the active phase with elapsed timer, related catalog items, and release control persisted locally",
             "ChronicleTimeline shows stored pulses/progress/reflection/orbit moments with bilingual labels and quick refocus shortcuts",
             "OrbitNavigator cycles resonance orbits, exposes intensity metrics, and links to synced catalog items without backend calls",
-            "ConstellationDeck weaves orbit intensities into alignable constellations with energy gauges, synergy badges, and anchor chips saved in preferences"
+            "ConstellationDeck weaves orbit intensities into alignable constellations with energy gauges, synergy badges, and anchor chips saved in preferences",
+            "HorizonBridge presents cross-constellation narratives with intensity sweeps, coherence gauges, mood blend chips, and quick item launches stored locally"
           ]
         }
       ]
@@ -274,6 +276,7 @@
     "Transaction",
     "CatalogItem",
     "ComparisonSet",
+    "ExperienceHorizon",
     "NotificationItem",
     "OnboardingSlide"
   ],

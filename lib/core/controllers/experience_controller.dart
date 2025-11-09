@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../models/experience_blueprint.dart';
 import '../models/experience_constellation.dart';
+import '../models/experience_horizon.dart';
 import '../models/experience_moment.dart';
 import '../models/experience_orbit.dart';
 import '../models/item.dart';
@@ -34,6 +35,7 @@ class ExperienceController extends ChangeNotifier {
     _schedulePulse();
     _scheduleOrbitCycle();
     _scheduleConstellationDrift();
+    _scheduleHorizonSweep();
   }
 
   final CatalogController _catalogController;
@@ -58,6 +60,9 @@ class ExperienceController extends ChangeNotifier {
       <ExperienceConstellation>[];
   ExperienceConstellation? _activeConstellation;
   Timer? _constellationTimer;
+  final List<ExperienceHorizon> _horizons = <ExperienceHorizon>[];
+  ExperienceHorizon? _activeHorizon;
+  Timer? _horizonTimer;
 
   List<ExperienceBlueprint> get blueprints => List.unmodifiable(_blueprints);
   ExperienceBlueprint? get pinnedBlueprint => _pinned;
@@ -70,6 +75,8 @@ class ExperienceController extends ChangeNotifier {
   List<ExperienceConstellation> get constellations =>
       List.unmodifiable(_constellations);
   ExperienceConstellation? get activeConstellation => _activeConstellation;
+  List<ExperienceHorizon> get horizons => List.unmodifiable(_horizons);
+  ExperienceHorizon? get activeHorizon => _activeHorizon;
 
   double blueprintProgress(ExperienceBlueprint blueprint) {
     return blueprint.progress(_getPhaseProgress);
@@ -133,6 +140,58 @@ class ExperienceController extends ChangeNotifier {
       }
     }
     return items;
+  }
+
+  List<CatalogItem> resolveHorizonItems(ExperienceHorizon horizon) {
+    final seen = <String>{};
+    final items = <CatalogItem>[];
+    for (final itemId in horizon.passageItemIds) {
+      if (!seen.add(itemId)) {
+        continue;
+      }
+      final item = _catalogController.findById(itemId);
+      if (item != null) {
+        items.add(item);
+      }
+    }
+    if (items.length < 4) {
+      for (final constellationId in horizon.constellationIds) {
+        ExperienceConstellation? constellation;
+        try {
+          constellation = _constellations
+              .firstWhere((entry) => entry.id == constellationId);
+        } catch (_) {
+          constellation = null;
+        }
+        if (constellation == null) {
+          continue;
+        }
+        for (final itemId in constellation.anchorItemIds) {
+          if (!seen.add(itemId)) {
+            continue;
+          }
+          final item = _catalogController.findById(itemId);
+          if (item != null) {
+            items.add(item);
+          }
+          if (items.length >= 6) {
+            break;
+          }
+        }
+        if (items.length >= 6) {
+          break;
+        }
+      }
+    }
+    return items;
+  }
+
+  double horizonIntensity(ExperienceHorizon horizon) {
+    final constellationLookup = {
+      for (final entry in _constellations) entry.id: entry
+    };
+    final orbitLookup = {for (final orbit in _orbits) orbit.id: orbit};
+    return horizon.intensity(constellationLookup, orbitLookup);
   }
 
   void activateOrbit(ExperienceOrbit orbit, {bool manual = true}) {
@@ -226,6 +285,7 @@ class ExperienceController extends ChangeNotifier {
         mood: _resolveConstellationMood(updated),
       ),
     );
+    _syncHorizons();
     _scheduleConstellationDrift();
     notifyListeners();
   }
@@ -240,6 +300,60 @@ class ExperienceController extends ChangeNotifier {
             .indexWhere((entry) => entry.id == _activeConstellation!.id);
     final nextIndex = (currentIndex + 1) % _constellations.length;
     alignConstellation(_constellations[nextIndex], manual: manual);
+  }
+
+  void openHorizon(ExperienceHorizon horizon, {bool manual = true}) {
+    final index = _horizons.indexWhere((entry) => entry.id == horizon.id);
+    if (index == -1) {
+      return;
+    }
+    if (_activeHorizon?.id == horizon.id && !manual) {
+      return;
+    }
+    final now = DateTime.now();
+    final passages = _collectHorizonPassages(horizon.constellationIds);
+    final coherence = _calculateHorizonCoherence(horizon.constellationIds);
+    final suggestion = _suggestHorizonBlueprint(horizon.constellationIds);
+    final updated = horizon.copyWith(
+      passageItemIds: passages,
+      coherence: coherence,
+      lastExpanded: now,
+      suggestedBlueprintId: suggestion,
+    );
+    _horizons[index] = updated;
+    _activeHorizon = updated;
+    _persistHorizons();
+    unawaited(_preferences.setActiveHorizonId(updated.id));
+    final fallbackBlueprintId = _resolveHorizonBlueprintFallback(updated);
+    final headline = manual
+        ? 'Horizon bridge • جسر الأفق'
+        : 'Horizon drift • انجراف الأفق';
+    final detail =
+        '${(updated.coherence * 100).toStringAsFixed(0)}% coherence • انسجام الجسر';
+    _recordMoment(
+      ExperienceMoment(
+        id: 'horizon_${updated.id}_${now.millisecondsSinceEpoch}',
+        blueprintId: suggestion ?? fallbackBlueprintId,
+        kind: ExperienceMomentKind.horizon,
+        title: headline,
+        detail: detail,
+        timestamp: now,
+        mood: _resolveHorizonMood(updated),
+      ),
+    );
+    _scheduleHorizonSweep();
+    notifyListeners();
+  }
+
+  void cycleHorizon({bool manual = false}) {
+    if (_horizons.isEmpty) {
+      return;
+    }
+    final currentIndex = _activeHorizon == null
+        ? -1
+        : _horizons.indexWhere((entry) => entry.id == _activeHorizon!.id);
+    final nextIndex = (currentIndex + 1) % _horizons.length;
+    openHorizon(_horizons[nextIndex], manual: manual);
   }
 
   void pinBlueprint(ExperienceBlueprint blueprint) {
@@ -335,10 +449,16 @@ class ExperienceController extends ChangeNotifier {
     _activeConstellation = null;
     await _preferences.clearExperienceConstellations();
     await _preferences.setActiveConstellationId(null);
+    _horizons.clear();
+    _activeHorizon = null;
+    await _preferences.clearExperienceHorizons();
+    await _preferences.setActiveHorizonId(null);
     _initializeOrbits();
     _initializeConstellations();
+    _initializeHorizons();
     _scheduleOrbitCycle();
     _scheduleConstellationDrift();
+    _scheduleHorizonSweep();
     _emitPulse(force: true);
     notifyListeners();
   }
@@ -378,6 +498,17 @@ class ExperienceController extends ChangeNotifier {
     _constellationTimer = Timer(const Duration(seconds: 28), () {
       cycleConstellation();
       _scheduleConstellationDrift();
+    });
+  }
+
+  void _scheduleHorizonSweep() {
+    _horizonTimer?.cancel();
+    if (_horizons.isEmpty) {
+      return;
+    }
+    _horizonTimer = Timer(const Duration(seconds: 36), () {
+      cycleHorizon();
+      _scheduleHorizonSweep();
     });
   }
 
@@ -477,6 +608,7 @@ class ExperienceController extends ChangeNotifier {
     }
     _initializeOrbits();
     _initializeConstellations();
+    _initializeHorizons();
     _emitPulse(force: true);
   }
 
@@ -706,6 +838,89 @@ class ExperienceController extends ChangeNotifier {
     );
   }
 
+  void _initializeHorizons() {
+    final stored = _preferences.getExperienceHorizons();
+    final restored = stored
+        .map(ExperienceHorizon.fromEncoded)
+        .fold<Map<String, ExperienceHorizon>>(
+            <String, ExperienceHorizon>{}, (map, horizon) {
+      map[horizon.id] = horizon;
+      return map;
+    });
+    final defaults = <ExperienceHorizon>[
+      ExperienceHorizon(
+        id: 'horizon_prism',
+        title: 'Prism Bridge',
+        constellationIds: const [
+          'constellation_flux',
+          'constellation_vector',
+        ],
+        moodHints: const [SceneMood.serene, SceneMood.vibrant],
+        passageItemIds: const <String>[],
+      ),
+      ExperienceHorizon(
+        id: 'horizon_echo',
+        title: 'Vector Echo',
+        constellationIds: const [
+          'constellation_vector',
+          'constellation_pulse',
+        ],
+        moodHints: const [SceneMood.vibrant, SceneMood.futuristic],
+        passageItemIds: const <String>[],
+      ),
+      ExperienceHorizon(
+        id: 'horizon_quantum',
+        title: 'Quantum Loom',
+        constellationIds: const [
+          'constellation_flux',
+          'constellation_pulse',
+          'constellation_vector',
+        ],
+        moodHints: const [
+          SceneMood.serene,
+          SceneMood.vibrant,
+          SceneMood.futuristic,
+        ],
+        passageItemIds: const <String>[],
+      ),
+    ];
+    _horizons
+      ..clear()
+      ..addAll(defaults.map((entry) {
+        final restoredEntry = restored[entry.id];
+        final passages = _collectHorizonPassages(entry.constellationIds);
+        final coherence = restoredEntry?.coherence ??
+            _calculateHorizonCoherence(entry.constellationIds);
+        final suggestion = restoredEntry?.suggestedBlueprintId ??
+            _suggestHorizonBlueprint(entry.constellationIds);
+        return ExperienceHorizon(
+          id: entry.id,
+          title: entry.title,
+          constellationIds: entry.constellationIds,
+          moodHints: entry.moodHints,
+          passageItemIds: passages,
+          coherence: coherence,
+          lastExpanded: restoredEntry?.lastExpanded,
+          suggestedBlueprintId: suggestion,
+        );
+      }));
+    _syncHorizons(persist: false);
+    final activeId = _preferences.getActiveHorizonId();
+    if (activeId != null) {
+      try {
+        _activeHorizon =
+            _horizons.firstWhere((entry) => entry.id == activeId);
+      } catch (_) {
+        _activeHorizon = null;
+      }
+    }
+    if (_activeHorizon == null && _horizons.isNotEmpty) {
+      _activeHorizon = _horizons.first;
+    }
+    _persistHorizons();
+    unawaited(_preferences.setActiveHorizonId(_activeHorizon?.id));
+  }
+
   void _persistOrbits() {
     unawaited(
       _preferences.setExperienceOrbits(
@@ -718,6 +933,14 @@ class ExperienceController extends ChangeNotifier {
     unawaited(
       _preferences.setExperienceConstellations(
         _constellations.map((entry) => entry.encode()).toList(),
+      ),
+    );
+  }
+
+  void _persistHorizons() {
+    unawaited(
+      _preferences.setExperienceHorizons(
+        _horizons.map((entry) => entry.encode()).toList(),
       ),
     );
   }
@@ -813,6 +1036,44 @@ class ExperienceController extends ChangeNotifier {
     if (persist && changed) {
       _persistConstellations();
     }
+    _syncHorizons(persist: persist);
+  }
+
+  void _syncHorizons({bool persist = true}) {
+    if (_horizons.isEmpty) {
+      return;
+    }
+    var changed = false;
+    for (var i = 0; i < _horizons.length; i++) {
+      final base = _horizons[i];
+      final passages = _collectHorizonPassages(base.constellationIds);
+      final coherence = _calculateHorizonCoherence(base.constellationIds);
+      final suggestion = _suggestHorizonBlueprint(base.constellationIds);
+      final passageChanged = !_listMatches(base.passageItemIds, passages);
+      final suggestionChanged = base.suggestedBlueprintId != suggestion;
+      if (passageChanged ||
+          (coherence - base.coherence).abs() > 0.001 ||
+          suggestionChanged) {
+        final updated = ExperienceHorizon(
+          id: base.id,
+          title: base.title,
+          constellationIds: base.constellationIds,
+          moodHints: base.moodHints,
+          passageItemIds: passages,
+          coherence: coherence,
+          lastExpanded: base.lastExpanded,
+          suggestedBlueprintId: suggestion,
+        );
+        _horizons[i] = updated;
+        if (_activeHorizon?.id == updated.id) {
+          _activeHorizon = updated;
+        }
+        changed = true;
+      }
+    }
+    if (persist && changed) {
+      _persistHorizons();
+    }
   }
 
   List<String> _collectAnchorItems(List<String> blueprintIds) {
@@ -842,6 +1103,39 @@ class ExperienceController extends ChangeNotifier {
     return prioritized.take(6).toList();
   }
 
+  List<String> _collectHorizonPassages(List<String> constellationIds) {
+    final seen = <String>{};
+    for (final constellationId in constellationIds) {
+      ExperienceConstellation? constellation;
+      try {
+        constellation =
+            _constellations.firstWhere((entry) => entry.id == constellationId);
+      } catch (_) {
+        constellation = null;
+      }
+      if (constellation == null) {
+        continue;
+      }
+      for (final itemId in constellation.anchorItemIds) {
+        if (seen.length >= 8) {
+          break;
+        }
+        seen.add(itemId);
+      }
+    }
+    final favorites = _catalogController.favoriteIds;
+    final prioritized = seen.toList()
+      ..sort((a, b) {
+        final aFav = favorites.contains(a);
+        final bFav = favorites.contains(b);
+        if (aFav == bFav) {
+          return a.compareTo(b);
+        }
+        return aFav ? -1 : 1;
+      });
+    return prioritized.take(8).toList();
+  }
+
   double _calculateConstellationSynergy(
       ExperienceConstellation constellation) {
     final completionScores = constellation.blueprintIds
@@ -868,6 +1162,119 @@ class ExperienceController extends ChangeNotifier {
       return constellation.moods.first;
     }
     return SceneMood.serene;
+  }
+
+  double _calculateHorizonCoherence(List<String> constellationIds) {
+    if (constellationIds.isEmpty) {
+      return 0;
+    }
+    final constellations = <ExperienceConstellation>[];
+    for (final constellationId in constellationIds) {
+      try {
+        constellations
+            .add(_constellations.firstWhere((entry) => entry.id == constellationId));
+      } catch (_) {
+        continue;
+      }
+    }
+    if (constellations.isEmpty) {
+      return 0;
+    }
+    final synergyAvg = constellations
+            .map((entry) => entry.synergy)
+            .fold<double>(0, (value, element) => value + element) /
+        constellations.length;
+    final orbitLookup = {for (final orbit in _orbits) orbit.id: orbit};
+    final energyAvg = constellations
+            .map((entry) => entry.energy(orbitLookup))
+            .fold<double>(0, (value, element) => value + element) /
+        constellations.length;
+    final anchorUnion = <String>{};
+    for (final constellation in constellations) {
+      anchorUnion.addAll(constellation.anchorItemIds);
+    }
+    final favorites = _catalogController.favoriteIds;
+    final anchorScore = anchorUnion.isEmpty
+        ? 0
+        : anchorUnion.where(favorites.contains).length / anchorUnion.length;
+    return (synergyAvg * 0.5 + energyAvg * 0.35 + anchorScore * 0.15)
+        .clamp(0, 1);
+  }
+
+  SceneMood _resolveHorizonMood(ExperienceHorizon horizon) {
+    if (horizon.moodHints.isNotEmpty) {
+      return horizon.moodHints.first;
+    }
+    final moodCounts = <SceneMood, int>{};
+    for (final constellationId in horizon.constellationIds) {
+      try {
+        final constellation =
+            _constellations.firstWhere((entry) => entry.id == constellationId);
+        for (final mood in constellation.moods) {
+          moodCounts[mood] = (moodCounts[mood] ?? 0) + 1;
+        }
+      } catch (_) {
+        continue;
+      }
+    }
+    if (moodCounts.isEmpty) {
+      return SceneMood.serene;
+    }
+    moodCounts.removeWhere((_, value) => value == 0);
+    return moodCounts.entries
+        .reduce((a, b) => a.value >= b.value ? a : b)
+        .key;
+  }
+
+  String _resolveHorizonBlueprintFallback(ExperienceHorizon horizon) {
+    for (final constellationId in horizon.constellationIds) {
+      try {
+        final constellation =
+            _constellations.firstWhere((entry) => entry.id == constellationId);
+        if (constellation.blueprintIds.isNotEmpty) {
+          return constellation.blueprintIds.first;
+        }
+      } catch (_) {
+        continue;
+      }
+    }
+    if (_blueprints.isNotEmpty) {
+      return _blueprints.first.id;
+    }
+    return 'bp_serenity';
+  }
+
+  String? _suggestHorizonBlueprint(List<String> constellationIds) {
+    final candidateIds = <String>{};
+    for (final constellationId in constellationIds) {
+      try {
+        final constellation =
+            _constellations.firstWhere((entry) => entry.id == constellationId);
+        candidateIds.addAll(constellation.blueprintIds);
+      } catch (_) {
+        continue;
+      }
+    }
+    if (candidateIds.isEmpty) {
+      return null;
+    }
+    String? bestId;
+    var bestScore = -1.0;
+    for (final blueprintId in candidateIds) {
+      final blueprint = findById(blueprintId);
+      if (blueprint == null) {
+        continue;
+      }
+      final completion = _calculateBlueprintCompletion(blueprint);
+      final focusBonus = _activeFocus?.blueprintId == blueprintId ? 0.2 : 0;
+      final pinnedBonus = _pinned?.id == blueprintId ? 0.15 : 0;
+      final score = completion + focusBonus + pinnedBonus;
+      if (score > bestScore) {
+        bestScore = score;
+        bestId = blueprintId;
+      }
+    }
+    return bestId;
   }
 
   bool _listMatches(List<String> a, List<String> b) {
@@ -1005,6 +1412,7 @@ class ExperienceController extends ChangeNotifier {
     _pulseTimer?.cancel();
     _orbitTimer?.cancel();
     _constellationTimer?.cancel();
+    _horizonTimer?.cancel();
     _catalogController.removeListener(_catalogListener);
     _showroomController.removeListener(_showroomListener);
     _signalController.close();
