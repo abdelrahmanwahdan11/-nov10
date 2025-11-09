@@ -9,6 +9,7 @@ import '../models/experience_constellation.dart';
 import '../models/experience_horizon.dart';
 import '../models/experience_moment.dart';
 import '../models/experience_nebula.dart';
+import '../models/experience_nova.dart';
 import '../models/experience_orbit.dart';
 import '../models/item.dart';
 import '../models/showroom_scene.dart';
@@ -40,6 +41,7 @@ class ExperienceController extends ChangeNotifier {
     _scheduleHorizonSweep();
     _scheduleAuroraCascade();
     _scheduleNebulaSurge();
+    _scheduleNovaBurst();
   }
 
   final CatalogController _catalogController;
@@ -73,6 +75,9 @@ class ExperienceController extends ChangeNotifier {
   final List<ExperienceNebula> _nebulas = <ExperienceNebula>[];
   ExperienceNebula? _activeNebula;
   Timer? _nebulaTimer;
+  final List<ExperienceNova> _novas = <ExperienceNova>[];
+  ExperienceNova? _activeNova;
+  Timer? _novaTimer;
 
   List<ExperienceBlueprint> get blueprints => List.unmodifiable(_blueprints);
   ExperienceBlueprint? get pinnedBlueprint => _pinned;
@@ -91,6 +96,8 @@ class ExperienceController extends ChangeNotifier {
   ExperienceAurora? get activeAurora => _activeAurora;
   List<ExperienceNebula> get nebulas => List.unmodifiable(_nebulas);
   ExperienceNebula? get activeNebula => _activeNebula;
+  List<ExperienceNova> get novas => List.unmodifiable(_novas);
+  ExperienceNova? get activeNova => _activeNova;
 
   double blueprintProgress(ExperienceBlueprint blueprint) {
     return blueprint.progress(_getPhaseProgress);
@@ -284,6 +291,49 @@ class ExperienceController extends ChangeNotifier {
     return items;
   }
 
+  List<CatalogItem> resolveNovaItems(ExperienceNova nova) {
+    final seen = <String>{};
+    final items = <CatalogItem>[];
+    for (final itemId in nova.catalystItemIds) {
+      if (!seen.add(itemId)) {
+        continue;
+      }
+      final item = _catalogController.findById(itemId);
+      if (item != null) {
+        items.add(item);
+      }
+      if (items.length >= 10) {
+        break;
+      }
+    }
+    if (items.length < 10) {
+      for (final nebulaId in nova.nebulaIds) {
+        ExperienceNebula? nebula;
+        try {
+          nebula = _nebulas.firstWhere((entry) => entry.id == nebulaId);
+        } catch (_) {
+          nebula = null;
+        }
+        if (nebula == null) {
+          continue;
+        }
+        for (final item in resolveNebulaItems(nebula)) {
+          if (!seen.add(item.id)) {
+            continue;
+          }
+          items.add(item);
+          if (items.length >= 14) {
+            break;
+          }
+        }
+        if (items.length >= 14) {
+          break;
+        }
+      }
+    }
+    return items;
+  }
+
   double horizonIntensity(ExperienceHorizon horizon) {
     final constellationLookup = {
       for (final entry in _constellations) entry.id: entry
@@ -309,6 +359,23 @@ class ExperienceController extends ChangeNotifier {
     };
     final orbitLookup = {for (final orbit in _orbits) orbit.id: orbit};
     return nebula.clarity(
+      auroraLookup,
+      horizonLookup,
+      constellationLookup,
+      orbitLookup,
+    );
+  }
+
+  double novaBrilliance(ExperienceNova nova) {
+    final nebulaLookup = {for (final entry in _nebulas) entry.id: entry};
+    final auroraLookup = {for (final entry in _auroras) entry.id: entry};
+    final horizonLookup = {for (final entry in _horizons) entry.id: entry};
+    final constellationLookup = {
+      for (final entry in _constellations) entry.id: entry
+    };
+    final orbitLookup = {for (final orbit in _orbits) orbit.id: orbit};
+    return nova.brilliance(
+      nebulaLookup,
       auroraLookup,
       horizonLookup,
       constellationLookup,
@@ -580,6 +647,7 @@ class ExperienceController extends ChangeNotifier {
         mood: _resolveNebulaMood(updated),
       ),
     );
+    _syncNovas();
     _scheduleNebulaSurge();
     notifyListeners();
   }
@@ -593,6 +661,61 @@ class ExperienceController extends ChangeNotifier {
         : _nebulas.indexWhere((entry) => entry.id == _activeNebula!.id);
     final nextIndex = (currentIndex + 1) % _nebulas.length;
     openNebula(_nebulas[nextIndex], manual: manual);
+  }
+
+  void openNova(ExperienceNova nova, {bool manual = true}) {
+    final index = _novas.indexWhere((entry) => entry.id == nova.id);
+    if (index == -1) {
+      return;
+    }
+    if (_activeNova?.id == nova.id && !manual) {
+      return;
+    }
+    final now = DateTime.now();
+    final catalystItems = _collectNovaCatalystItems(nova.nebulaIds);
+    final intensity = _calculateNovaIntensity(nova.nebulaIds);
+    final stability = _calculateNovaStability(nova.nebulaIds);
+    final featured = _suggestNovaNebula(nova.nebulaIds);
+    final updated = nova.copyWith(
+      catalystItemIds: catalystItems,
+      intensity: intensity,
+      stability: stability,
+      lastIgnition: now,
+      featuredNebulaId: featured ?? nova.featuredNebulaId,
+    );
+    _novas[index] = updated;
+    _activeNova = updated;
+    _persistNovas();
+    unawaited(_preferences.setActiveNovaId(updated.id));
+    final blueprintId = _resolveNovaBlueprintId(updated);
+    final headline = manual
+        ? 'Nova ignition • إشعال النوفا'
+        : 'Nova drift • انسياب النوفا';
+    final detail =
+        '${(updated.intensity * 100).toStringAsFixed(0)}% intensity • ${(updated.stability * 100).toStringAsFixed(0)}% stability • ${(novaBrilliance(updated) * 100).toStringAsFixed(0)}% brilliance';
+    _recordMoment(
+      ExperienceMoment(
+        id: 'nova_${updated.id}_${now.millisecondsSinceEpoch}',
+        blueprintId: blueprintId,
+        kind: ExperienceMomentKind.nova,
+        title: headline,
+        detail: detail,
+        timestamp: now,
+        mood: _resolveNovaMood(updated),
+      ),
+    );
+    _scheduleNovaBurst();
+    notifyListeners();
+  }
+
+  void cycleNova({bool manual = false}) {
+    if (_novas.isEmpty) {
+      return;
+    }
+    final currentIndex =
+        _activeNova == null ? -1 : _novas.indexWhere((entry) => entry.id == _activeNova!.id);
+    final nextIndex = (currentIndex + 1) % _novas.length;
+    openNova(_novas[nextIndex], manual: manual);
   }
 
   void pinBlueprint(ExperienceBlueprint blueprint) {
@@ -700,16 +823,22 @@ class ExperienceController extends ChangeNotifier {
     _activeNebula = null;
     await _preferences.clearExperienceNebulas();
     await _preferences.setActiveNebulaId(null);
+    _novas.clear();
+    _activeNova = null;
+    await _preferences.clearExperienceNovas();
+    await _preferences.setActiveNovaId(null);
     _initializeOrbits();
     _initializeConstellations();
     _initializeHorizons();
     _initializeAuroras();
     _initializeNebulas();
+    _initializeNovas();
     _scheduleOrbitCycle();
     _scheduleConstellationDrift();
     _scheduleHorizonSweep();
     _scheduleAuroraCascade();
     _scheduleNebulaSurge();
+    _scheduleNovaBurst();
     _emitPulse(force: true);
     notifyListeners();
   }
@@ -784,6 +913,18 @@ class ExperienceController extends ChangeNotifier {
     _nebulaTimer = Timer(Duration(seconds: seconds), () {
       cycleNebula();
       _scheduleNebulaSurge();
+    });
+  }
+
+  void _scheduleNovaBurst() {
+    _novaTimer?.cancel();
+    if (_novas.isEmpty) {
+      return;
+    }
+    final seconds = 86 + _random.nextInt(42);
+    _novaTimer = Timer(Duration(seconds: seconds), () {
+      cycleNova();
+      _scheduleNovaBurst();
     });
   }
 
@@ -886,6 +1027,7 @@ class ExperienceController extends ChangeNotifier {
     _initializeHorizons();
     _initializeAuroras();
     _initializeNebulas();
+    _initializeNovas();
     _emitPulse(force: true);
   }
 
@@ -1345,6 +1487,71 @@ class ExperienceController extends ChangeNotifier {
     unawaited(_preferences.setActiveNebulaId(_activeNebula?.id));
   }
 
+  void _initializeNovas() {
+    final stored = _preferences.getExperienceNovas();
+    final restored = stored
+        .map(ExperienceNova.fromEncoded)
+        .fold<Map<String, ExperienceNova>>(<String, ExperienceNova>{}, (map, nova) {
+      map[nova.id] = nova;
+      return map;
+    });
+    final defaults = <ExperienceNova>[
+      ExperienceNova(
+        id: 'nova_orchestra',
+        title: 'Nova Orchestra',
+        nebulaIds: const ['nebula_chronicle', 'nebula_resonance'],
+        catalystItemIds: const <String>[],
+        sequenceHints: const [SceneMood.vibrant, SceneMood.futuristic],
+      ),
+      ExperienceNova(
+        id: 'nova_halo',
+        title: 'Halo Bloom',
+        nebulaIds: const ['nebula_resonance', 'nebula_horizon'],
+        catalystItemIds: const <String>[],
+        sequenceHints: const [SceneMood.serene, SceneMood.vibrant],
+      ),
+    ];
+    _novas
+      ..clear()
+      ..addAll(defaults.map((entry) {
+        final restoredEntry = restored[entry.id];
+        final catalyst = restoredEntry?.catalystItemIds.isNotEmpty == true
+            ? restoredEntry!.catalystItemIds
+            : _collectNovaCatalystItems(entry.nebulaIds);
+        final intensity =
+            restoredEntry?.intensity ?? _calculateNovaIntensity(entry.nebulaIds);
+        final stability =
+            restoredEntry?.stability ?? _calculateNovaStability(entry.nebulaIds);
+        final featured = restoredEntry?.featuredNebulaId ??
+            _suggestNovaNebula(entry.nebulaIds);
+        return ExperienceNova(
+          id: entry.id,
+          title: entry.title,
+          nebulaIds: entry.nebulaIds,
+          catalystItemIds: catalyst,
+          sequenceHints: entry.sequenceHints,
+          intensity: intensity,
+          stability: stability,
+          lastIgnition: restoredEntry?.lastIgnition,
+          featuredNebulaId: featured,
+        );
+      }));
+    _syncNovas(persist: false);
+    final activeId = _preferences.getActiveNovaId();
+    if (activeId != null) {
+      try {
+        _activeNova = _novas.firstWhere((entry) => entry.id == activeId);
+      } catch (_) {
+        _activeNova = null;
+      }
+    }
+    if (_activeNova == null && _novas.isNotEmpty) {
+      _activeNova = _novas.first;
+    }
+    _persistNovas();
+    unawaited(_preferences.setActiveNovaId(_activeNova?.id));
+  }
+
   void _persistOrbits() {
     unawaited(
       _preferences.setExperienceOrbits(
@@ -1389,6 +1596,18 @@ class ExperienceController extends ChangeNotifier {
     unawaited(
       _preferences.setExperienceNebulas(
         _nebulas.map((entry) => entry.encode()).toList(),
+      ),
+    );
+  }
+
+  void _persistNovas() {
+    if (_novas.isEmpty) {
+      unawaited(_preferences.clearExperienceNovas());
+      return;
+    }
+    unawaited(
+      _preferences.setExperienceNovas(
+        _novas.map((entry) => entry.encode()).toList(),
       ),
     );
   }
@@ -1881,6 +2100,180 @@ class ExperienceController extends ChangeNotifier {
     return bestId;
   }
 
+  List<String> _collectNovaCatalystItems(List<String> nebulaIds) {
+    final seen = <String>{};
+    final items = <String>[];
+    for (final nebulaId in nebulaIds) {
+      ExperienceNebula? nebula;
+      try {
+        nebula = _nebulas.firstWhere((entry) => entry.id == nebulaId);
+      } catch (_) {
+        nebula = null;
+      }
+      if (nebula == null) {
+        continue;
+      }
+      for (final itemId in nebula.pulseItemIds) {
+        if (seen.add(itemId)) {
+          items.add(itemId);
+        }
+        if (items.length >= 12) {
+          break;
+        }
+      }
+      if (items.length >= 12) {
+        break;
+      }
+      for (final auroraId in nebula.auroraIds) {
+        ExperienceAurora? aurora;
+        try {
+          aurora = _auroras.firstWhere((entry) => entry.id == auroraId);
+        } catch (_) {
+          aurora = null;
+        }
+        if (aurora == null) {
+          continue;
+        }
+        for (final itemId in aurora.highlightItemIds) {
+          if (seen.add(itemId)) {
+            items.add(itemId);
+          }
+          if (items.length >= 12) {
+            break;
+          }
+        }
+        if (items.length >= 12) {
+          break;
+        }
+      }
+      if (items.length >= 12) {
+        break;
+      }
+    }
+    if (items.length < 6) {
+      final favorites = _catalogController.favoriteIds;
+      for (final itemId in favorites) {
+        if (seen.add(itemId)) {
+          items.add(itemId);
+        }
+        if (items.length >= 12) {
+          break;
+        }
+      }
+    }
+    return items.take(12).toList();
+  }
+
+  double _calculateNovaIntensity(List<String> nebulaIds) {
+    if (nebulaIds.isEmpty) {
+      return 0.4;
+    }
+    final luminosities = <double>[];
+    for (final nebulaId in nebulaIds) {
+      try {
+        final nebula = _nebulas.firstWhere((entry) => entry.id == nebulaId);
+        luminosities.add(nebula.luminosity);
+      } catch (_) {
+        continue;
+      }
+    }
+    if (luminosities.isEmpty) {
+      return 0.4;
+    }
+    final average =
+        luminosities.reduce((value, element) => value + element) / luminosities.length;
+    final synergyBoost = (nebulaIds.length - 1) * 0.05;
+    return (average + synergyBoost).clamp(0, 1);
+  }
+
+  double _calculateNovaStability(List<String> nebulaIds) {
+    if (nebulaIds.isEmpty) {
+      return 0.35;
+    }
+    final now = DateTime.now();
+    final stabilityValues = <double>[];
+    for (final nebulaId in nebulaIds) {
+      ExperienceNebula? nebula;
+      try {
+        nebula = _nebulas.firstWhere((entry) => entry.id == nebulaId);
+      } catch (_) {
+        nebula = null;
+      }
+      if (nebula == null) {
+        continue;
+      }
+      final recency = nebula.lastSurge == null
+          ? 0.3
+          : (1 - (now.difference(nebula.lastSurge!).inMinutes / 240).clamp(0, 1)) * 0.4;
+      stabilityValues
+          .add((nebula.cohesion * 0.6 + recency).clamp(0, 1));
+    }
+    if (stabilityValues.isEmpty) {
+      return 0.35;
+    }
+    final average = stabilityValues.reduce((value, element) => value + element) /
+        stabilityValues.length;
+    return average.clamp(0, 1);
+  }
+
+  SceneMood _resolveNovaMood(ExperienceNova nova) {
+    final featuredId =
+        nova.featuredNebulaId ?? (nova.nebulaIds.isNotEmpty ? nova.nebulaIds.first : null);
+    if (featuredId != null) {
+      try {
+        final nebula = _nebulas.firstWhere((entry) => entry.id == featuredId);
+        return _resolveNebulaMood(nebula);
+      } catch (_) {
+        // ignore and fallback to hints
+      }
+    }
+    return nova.sequenceHints.isNotEmpty ? nova.sequenceHints.first : SceneMood.serene;
+  }
+
+  String _resolveNovaBlueprintId(ExperienceNova nova) {
+    final fallback = _pinned?.id ?? (_blueprints.isNotEmpty ? _blueprints.first.id : 'bp_serenity');
+    final featuredId =
+        nova.featuredNebulaId ?? (nova.nebulaIds.isNotEmpty ? nova.nebulaIds.first : null);
+    if (featuredId == null) {
+      return fallback;
+    }
+    try {
+      final nebula = _nebulas.firstWhere((entry) => entry.id == featuredId);
+      final blueprintId =
+          nebula.spotlightBlueprintId ?? _resolveNebulaBlueprintFallback(nebula);
+      return blueprintId.isEmpty ? fallback : blueprintId;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  String? _suggestNovaNebula(List<String> nebulaIds) {
+    String? bestId;
+    var bestScore = -1.0;
+    final now = DateTime.now();
+    for (final nebulaId in nebulaIds) {
+      ExperienceNebula? nebula;
+      try {
+        nebula = _nebulas.firstWhere((entry) => entry.id == nebulaId);
+      } catch (_) {
+        nebula = null;
+      }
+      if (nebula == null) {
+        continue;
+      }
+      final clarityScore = nebulaClarity(nebula);
+      final recency = nebula.lastSurge == null
+          ? 0.2
+          : (1 - (now.difference(nebula.lastSurge!).inMinutes / 360).clamp(0, 1)) * 0.3;
+      final score = clarityScore + (nebula.luminosity * 0.2) + recency;
+      if (score > bestScore) {
+        bestScore = score;
+        bestId = nebulaId;
+      }
+    }
+    return bestId;
+  }
+
   double _calculateConstellationSynergy(
       ExperienceConstellation constellation) {
     final completionScores = constellation.blueprintIds
@@ -2241,6 +2634,50 @@ class ExperienceController extends ChangeNotifier {
     if (persist && changed) {
       _persistNebulas();
     }
+    _syncNovas(persist: persist);
+  }
+
+  void _syncNovas({bool persist = true}) {
+    if (_novas.isEmpty) {
+      if (persist) {
+        _persistNovas();
+      }
+      return;
+    }
+    var changed = false;
+    for (var i = 0; i < _novas.length; i++) {
+      final base = _novas[i];
+      final catalyst = _collectNovaCatalystItems(base.nebulaIds);
+      final intensity = _calculateNovaIntensity(base.nebulaIds);
+      final stability = _calculateNovaStability(base.nebulaIds);
+      final featured = _suggestNovaNebula(base.nebulaIds);
+      final catalystChanged = !_listMatches(base.catalystItemIds, catalyst);
+      final featuredChanged = featured != null && featured != base.featuredNebulaId;
+      if (catalystChanged ||
+          (intensity - base.intensity).abs() > 0.001 ||
+          (stability - base.stability).abs() > 0.001 ||
+          featuredChanged) {
+        final updated = ExperienceNova(
+          id: base.id,
+          title: base.title,
+          nebulaIds: base.nebulaIds,
+          catalystItemIds: catalyst,
+          sequenceHints: base.sequenceHints,
+          intensity: intensity,
+          stability: stability,
+          lastIgnition: base.lastIgnition,
+          featuredNebulaId: featured ?? base.featuredNebulaId,
+        );
+        _novas[i] = updated;
+        if (_activeNova?.id == updated.id) {
+          _activeNova = updated;
+        }
+        changed = true;
+      }
+    }
+    if (persist && changed) {
+      _persistNovas();
+    }
   }
 
   void _syncAuroras({bool persist = true}) {
@@ -2421,6 +2858,7 @@ class ExperienceController extends ChangeNotifier {
     _horizonTimer?.cancel();
     _auroraTimer?.cancel();
     _nebulaTimer?.cancel();
+    _novaTimer?.cancel();
     _catalogController.removeListener(_catalogListener);
     _showroomController.removeListener(_showroomListener);
     _signalController.close();

@@ -133,6 +133,18 @@ class AppLocalizations {
           'Ignite more aurora cascades to unlock nebula symphonies.',
       'experience_nebula_spotlight': 'Spotlight blueprint',
       'experience_moment_nebula': 'Nebula surge',
+      'experience_novas_title': 'Nova atelier',
+      'experience_novas_subtitle':
+          'Fuse nebula symphonies into on-device ignition suites.',
+      'experience_nova_cycle': 'Cycle nova',
+      'experience_nova_intensity': 'Nova intensity',
+      'experience_nova_stability': 'Stability',
+      'experience_nova_brilliance': 'Brilliance',
+      'experience_nova_last': 'Last ignition',
+      'experience_nova_last_never': 'Not ignited yet',
+      'experience_novas_empty':
+          'Ignite additional nebulae to compose nova ateliers.',
+      'experience_moment_nova': 'Nova ignition',
     },
     'ar': {
       'app_title': 'كتالوج نيو',
@@ -260,6 +272,18 @@ class AppLocalizations {
           'فعّل المزيد من تدفقات الشفق لفتح سمفونيات السديم.',
       'experience_nebula_spotlight': 'المخطط المضاء',
       'experience_moment_nebula': 'اندفاع السديم',
+      'experience_novas_title': 'محترف النوفا',
+      'experience_novas_subtitle':
+          'ادمج سمفونيات السديم في أجنحة إشعال محلية.',
+      'experience_nova_cycle': 'تبديل النوفا',
+      'experience_nova_intensity': 'شدة النوفا',
+      'experience_nova_stability': 'الاستقرار',
+      'experience_nova_brilliance': 'التألق',
+      'experience_nova_last': 'آخر إشعال',
+      'experience_nova_last_never': 'لم يتم الإشعال بعد',
+      'experience_novas_empty':
+          'أشعل المزيد من السدم لصناعة محترف النوفا المتقدم.',
+      'experience_moment_nova': 'إشعال النوفا',
     },
   };
 

@@ -10,6 +10,7 @@ import '../../../../core/models/experience_constellation.dart';
 import '../../../../core/models/experience_horizon.dart';
 import '../../../../core/models/experience_moment.dart';
 import '../../../../core/models/experience_nebula.dart';
+import '../../../../core/models/experience_nova.dart';
 import '../../../../core/models/experience_blueprint.dart';
 import '../../../../core/models/experience_orbit.dart';
 import '../../../../core/models/item.dart';
@@ -60,6 +61,8 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
           final activeAurora = _controller.activeAurora;
           final nebulas = _controller.nebulas;
           final activeNebula = _controller.activeNebula;
+          final novas = _controller.novas;
+          final activeNova = _controller.activeNova;
           return CustomScrollView(
             padding: const EdgeInsets.only(bottom: 96),
             slivers: [
@@ -134,6 +137,18 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
                   child: _NebulaSymphony(
                     nebulas: nebulas,
                     activeNebula: activeNebula,
+                    controller: _controller,
+                    localization: localization,
+                    onSelectItem: widget.onSelectItem,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+                  child: _NovaRadiance(
+                    novas: novas,
+                    activeNova: activeNova,
                     controller: _controller,
                     localization: localization,
                     onSelectItem: widget.onSelectItem,
@@ -1724,6 +1739,341 @@ class _NebulaEmptyState extends StatelessWidget {
           Expanded(
             child: Text(
               localization.translate('experience_nebulas_empty'),
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NovaRadiance extends StatelessWidget {
+  const _NovaRadiance({
+    required this.novas,
+    required this.activeNova,
+    required this.controller,
+    required this.localization,
+    required this.onSelectItem,
+  });
+
+  final List<ExperienceNova> novas;
+  final ExperienceNova? activeNova;
+  final ExperienceController controller;
+  final AppLocalizations localization;
+  final ValueChanged<CatalogItem> onSelectItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    localization.translate('experience_novas_title'),
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    localization.translate('experience_novas_subtitle'),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.hintColor),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: novas.isEmpty ? null : () => controller.cycleNova(manual: true),
+              tooltip: localization.translate('experience_nova_cycle'),
+              icon: const Icon(IconlyLight.star),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (novas.isEmpty)
+          _NovaEmptyState(localization: localization)
+        else
+          SizedBox(
+            height: 244,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: novas.length,
+              itemBuilder: (context, index) {
+                final nova = novas[index];
+                final isActive = activeNova?.id == nova.id;
+                return _NovaCard(
+                  nova: nova,
+                  isActive: isActive,
+                  controller: controller,
+                  localization: localization,
+                  onSelectItem: onSelectItem,
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _NovaCard extends StatelessWidget {
+  const _NovaCard({
+    required this.nova,
+    required this.isActive,
+    required this.controller,
+    required this.localization,
+    required this.onSelectItem,
+  });
+
+  final ExperienceNova nova;
+  final bool isActive;
+  final ExperienceController controller;
+  final AppLocalizations localization;
+  final ValueChanged<CatalogItem> onSelectItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final brilliance = controller.novaBrilliance(nova).clamp(0.0, 1.0);
+    final intensityPercent = (nova.intensity * 100).clamp(0, 100).toDouble();
+    final stabilityPercent = (nova.stability * 100).clamp(0, 100).toDouble();
+    final items = controller.resolveNovaItems(nova).take(8).toList();
+    ExperienceNebula? featuredNebula;
+    if (nova.featuredNebulaId != null) {
+      try {
+        featuredNebula = controller.nebulas
+            .firstWhere((entry) => entry.id == nova.featuredNebulaId);
+      } catch (_) {
+        featuredNebula = null;
+      }
+    }
+    final materialLocalizations = MaterialLocalizations.of(context);
+    final mediaQuery = MediaQuery.of(context);
+    final lastIgnition = nova.lastIgnition;
+    final lastLabel = lastIgnition == null
+        ? localization.translate('experience_nova_last_never')
+        : '${localization.translate('experience_nova_last')} '
+            '${materialLocalizations.formatMediumDate(lastIgnition)} · '
+            '${materialLocalizations.formatTimeOfDay(
+              TimeOfDay.fromDateTime(lastIgnition),
+              alwaysUse24HourFormat: mediaQuery.alwaysUse24HourFormat,
+            )}';
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 360),
+      width: 300,
+      margin: const EdgeInsets.only(right: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          colors: isActive
+              ? [
+                  theme.colorScheme.primary.withOpacity(0.32),
+                  theme.colorScheme.secondary.withOpacity(0.26),
+                ]
+              : [
+                  theme.colorScheme.surface.withOpacity(0.6),
+                  theme.colorScheme.surfaceVariant.withOpacity(0.28),
+                ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(
+          color: theme.colorScheme.primary.withOpacity(isActive ? 0.9 : 0.22),
+          width: isActive ? 2 : 1.1,
+        ),
+        boxShadow: [
+          if (isActive)
+            BoxShadow(
+              color: theme.colorScheme.primary.withOpacity(0.18),
+              blurRadius: 22,
+              offset: const Offset(0, 18),
+            ),
+        ],
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(28),
+          onTap: () => controller.openNova(nova, manual: true),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            nova.title,
+                            style: theme.textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          if (nova.sequenceHints.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              nova.sequenceHints.map((mood) => mood.name).join(' • '),
+                              style: theme.textTheme.bodySmall
+                                  ?.copyWith(color: theme.hintColor),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      isActive ? IconlyBold.star : IconlyLight.star,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '${localization.translate('experience_nova_intensity')} '
+                  '${intensityPercent.toStringAsFixed(0)}%',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: LinearProgressIndicator(
+                    value: nova.intensity.clamp(0.0, 1.0),
+                    minHeight: 6,
+                    backgroundColor:
+                        theme.colorScheme.primary.withOpacity(0.18),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '${localization.translate('experience_nova_stability')} '
+                  '${stabilityPercent.toStringAsFixed(0)}%',
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: LinearProgressIndicator(
+                    value: nova.stability.clamp(0.0, 1.0),
+                    minHeight: 6,
+                    backgroundColor:
+                        theme.colorScheme.secondary.withOpacity(0.16),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      theme.colorScheme.secondary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(IconlyLight.activity, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${localization.translate('experience_nova_brilliance')} '
+                      '${(brilliance * 100).toStringAsFixed(0)}%',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (featuredNebula != null) ...[
+                  Text(
+                    featuredNebula!.title,
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: items
+                      .map(
+                        (item) => GestureDetector(
+                          onTap: () => onSelectItem(item),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(14),
+                                child: Image.network(
+                                  item.imageUrl,
+                                  width: 48,
+                                  height: 48,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              SizedBox(
+                                width: 64,
+                                child: Text(
+                                  item.name,
+                                  style: theme.textTheme.labelSmall,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const Spacer(),
+                Text(
+                  lastLabel,
+                  style:
+                      theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NovaEmptyState extends StatelessWidget {
+  const _NovaEmptyState({required this.localization});
+
+  final AppLocalizations localization;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.38),
+        border: Border.all(
+          color: theme.colorScheme.primary.withOpacity(0.24),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            IconlyLight.star,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              localization.translate('experience_novas_empty'),
               style: theme.textTheme.bodyMedium,
             ),
           ),
