@@ -169,6 +169,18 @@ class AppLocalizations {
       'experience_singularities_empty':
           'Illuminate additional quasar beacons to unlock singularity cores.',
       'experience_moment_singularity': 'Singularity collapse',
+      'experience_continua_title': 'Continuum gate',
+      'experience_continua_subtitle':
+          'Fuse singularity cores into on-device continuum flows.',
+      'experience_continuum_cycle': 'Cycle continuum',
+      'experience_continuum_density': 'Density',
+      'experience_continuum_synergy': 'Synergy',
+      'experience_continuum_stability': 'Stability',
+      'experience_continuum_last': 'Last fusion',
+      'experience_continuum_last_never': 'No fusion yet',
+      'experience_continua_empty':
+          'Collapse more singularities to unlock continuum flows.',
+      'experience_moment_continuum': 'Continuum fusion',
     },
     'ar': {
       'app_title': 'كتالوج نيو',
@@ -332,6 +344,18 @@ class AppLocalizations {
       'experience_singularities_empty':
           'قم بتنشيط منارات كوازار إضافية لفتح نوى التفرد.',
       'experience_moment_singularity': 'طي التفرد',
+      'experience_continua_title': 'بوابة المتصل',
+      'experience_continua_subtitle':
+          'ادمج نوى التفرد في تدفقات متصلة على الجهاز.',
+      'experience_continuum_cycle': 'تدوير المتصل',
+      'experience_continuum_density': 'الكثافة',
+      'experience_continuum_synergy': 'التآزر',
+      'experience_continuum_stability': 'الاستقرار',
+      'experience_continuum_last': 'آخر اندماج',
+      'experience_continuum_last_never': 'لم يندمج بعد',
+      'experience_continua_empty':
+          'ادمج نوى إضافية لفتح تدفقات المتصل.',
+      'experience_moment_continuum': 'اندماج المتصل',
     },
   };
 

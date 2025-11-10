@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../models/experience_aurora.dart';
 import '../models/experience_blueprint.dart';
 import '../models/experience_constellation.dart';
+import '../models/experience_continuum.dart';
 import '../models/experience_horizon.dart';
 import '../models/experience_moment.dart';
 import '../models/experience_nebula.dart';
@@ -30,6 +31,7 @@ class ExperienceController extends ChangeNotifier {
     _catalogListener = () {
       _emitPulse();
       _syncConstellations();
+      _syncContinua(persist: false);
       notifyListeners();
     };
     _showroomListener = notifyListeners;
@@ -46,6 +48,7 @@ class ExperienceController extends ChangeNotifier {
     _scheduleNovaBurst();
     _scheduleQuasarBeacon();
     _scheduleSingularityCollapse();
+    _scheduleContinuumFusion();
   }
 
   final CatalogController _catalogController;
@@ -89,6 +92,9 @@ class ExperienceController extends ChangeNotifier {
       <ExperienceSingularity>[];
   ExperienceSingularity? _activeSingularity;
   Timer? _singularityTimer;
+  final List<ExperienceContinuum> _continua = <ExperienceContinuum>[];
+  ExperienceContinuum? _activeContinuum;
+  Timer? _continuumTimer;
 
   List<ExperienceBlueprint> get blueprints => List.unmodifiable(_blueprints);
   ExperienceBlueprint? get pinnedBlueprint => _pinned;
@@ -114,6 +120,8 @@ class ExperienceController extends ChangeNotifier {
   List<ExperienceSingularity> get singularities =>
       List.unmodifiable(_singularities);
   ExperienceSingularity? get activeSingularity => _activeSingularity;
+  List<ExperienceContinuum> get continua => List.unmodifiable(_continua);
+  ExperienceContinuum? get activeContinuum => _activeContinuum;
 
   double blueprintProgress(ExperienceBlueprint blueprint) {
     return blueprint.progress(_getPhaseProgress);
@@ -445,6 +453,69 @@ class ExperienceController extends ChangeNotifier {
           items.add(item);
         }
         if (items.length >= 18) {
+          break;
+        }
+      }
+    }
+    return items;
+  }
+
+  List<CatalogItem> resolveContinuumItems(ExperienceContinuum continuum) {
+    final seen = <String>{};
+    final items = <CatalogItem>[];
+    for (final itemId in continuum.flowItemIds) {
+      if (!seen.add(itemId)) {
+        continue;
+      }
+      final item = _catalogController.findById(itemId);
+      if (item != null) {
+        items.add(item);
+      }
+      if (items.length >= 20) {
+        break;
+      }
+    }
+    if (items.length < 16) {
+      for (final singularityId in continuum.singularityIds) {
+        ExperienceSingularity? singularity;
+        try {
+          singularity =
+              _singularities.firstWhere((entry) => entry.id == singularityId);
+        } catch (_) {
+          singularity = null;
+        }
+        if (singularity == null) {
+          continue;
+        }
+        for (final item in resolveSingularityItems(singularity)) {
+          if (!seen.add(item.id)) {
+            continue;
+          }
+          items.add(item);
+          if (items.length >= 24) {
+            break;
+          }
+        }
+        if (items.length >= 24) {
+          break;
+        }
+      }
+    }
+    if (items.length < 18) {
+      for (final blueprint in _blueprints) {
+        for (final itemId in blueprint.relatedItemIds) {
+          if (!seen.add(itemId)) {
+            continue;
+          }
+          final item = _catalogController.findById(itemId);
+          if (item != null) {
+            items.add(item);
+          }
+          if (items.length >= 24) {
+            break;
+          }
+        }
+        if (items.length >= 24) {
           break;
         }
       }
@@ -948,6 +1019,7 @@ class ExperienceController extends ChangeNotifier {
       ),
     );
     _scheduleSingularityCollapse();
+    _syncContinua();
     notifyListeners();
   }
 
@@ -961,6 +1033,70 @@ class ExperienceController extends ChangeNotifier {
             .indexWhere((entry) => entry.id == _activeSingularity!.id);
     final nextIndex = (currentIndex + 1) % _singularities.length;
     openSingularity(_singularities[nextIndex], manual: manual);
+  }
+
+  void openContinuum(
+    ExperienceContinuum continuum, {
+    bool manual = true,
+  }) {
+    final index = _continua.indexWhere((entry) => entry.id == continuum.id);
+    if (index == -1) {
+      return;
+    }
+    if (_activeContinuum?.id == continuum.id && !manual) {
+      return;
+    }
+    final now = DateTime.now();
+    final flowItems = _collectContinuumFlowItems(continuum.singularityIds);
+    final density = _calculateContinuumDensity(continuum.singularityIds);
+    final synergy = _calculateContinuumSynergy(continuum.singularityIds);
+    final stability = _calculateContinuumStability(continuum.singularityIds);
+    final featured =
+        _suggestContinuumSingularity(continuum.singularityIds);
+    final updated = continuum.copyWith(
+      flowItemIds: flowItems,
+      density: density,
+      synergy: synergy,
+      stability: stability,
+      lastFusion: now,
+      featuredSingularityId: featured ?? continuum.featuredSingularityId,
+    );
+    _continua[index] = updated;
+    _activeContinuum = updated;
+    _persistContinua();
+    unawaited(_preferences.setActiveContinuumId(updated.id));
+    final blueprintId = _resolveContinuumBlueprintId(updated);
+    final headline = manual
+        ? 'Continuum fusion • اندماج المتصل'
+        : 'Continuum drift • انجراف المتصل';
+    final detail =
+        '${(updated.density * 100).toStringAsFixed(0)}% density • '
+        '${(updated.synergy * 100).toStringAsFixed(0)}% synergy • '
+        '${(updated.stability * 100).toStringAsFixed(0)}% stability';
+    _recordMoment(
+      ExperienceMoment(
+        id: 'continuum_${updated.id}_${now.millisecondsSinceEpoch}',
+        blueprintId: blueprintId,
+        kind: ExperienceMomentKind.continuum,
+        title: headline,
+        detail: detail,
+        timestamp: now,
+        mood: _resolveContinuumMood(updated),
+      ),
+    );
+    _scheduleContinuumFusion();
+    notifyListeners();
+  }
+
+  void cycleContinuum({bool manual = false}) {
+    if (_continua.isEmpty) {
+      return;
+    }
+    final currentIndex = _activeContinuum == null
+        ? -1
+        : _continua.indexWhere((entry) => entry.id == _activeContinuum!.id);
+    final nextIndex = (currentIndex + 1) % _continua.length;
+    openContinuum(_continua[nextIndex], manual: manual);
   }
 
   void pinBlueprint(ExperienceBlueprint blueprint) {
@@ -1080,6 +1216,10 @@ class ExperienceController extends ChangeNotifier {
     _activeSingularity = null;
     await _preferences.clearExperienceSingularities();
     await _preferences.setActiveSingularityId(null);
+    _continua.clear();
+    _activeContinuum = null;
+    await _preferences.clearExperienceContinua();
+    await _preferences.setActiveContinuumId(null);
     _initializeOrbits();
     _initializeConstellations();
     _initializeHorizons();
@@ -1088,6 +1228,7 @@ class ExperienceController extends ChangeNotifier {
     _initializeNovas();
     _initializeQuasars();
     _initializeSingularities();
+    _initializeContinua();
     _scheduleOrbitCycle();
     _scheduleConstellationDrift();
     _scheduleHorizonSweep();
@@ -1096,6 +1237,7 @@ class ExperienceController extends ChangeNotifier {
     _scheduleNovaBurst();
     _scheduleQuasarBeacon();
     _scheduleSingularityCollapse();
+    _scheduleContinuumFusion();
     _emitPulse(force: true);
     notifyListeners();
   }
@@ -1209,6 +1351,18 @@ class ExperienceController extends ChangeNotifier {
     });
   }
 
+  void _scheduleContinuumFusion() {
+    _continuumTimer?.cancel();
+    if (_continua.isEmpty) {
+      return;
+    }
+    final seconds = 208 + _random.nextInt(84);
+    _continuumTimer = Timer(Duration(seconds: seconds), () {
+      cycleContinuum();
+      _scheduleContinuumFusion();
+    });
+  }
+
   double _getPhaseProgress(String key) {
     if (_phaseProgress.containsKey(key)) {
       return _phaseProgress[key]!;
@@ -1311,6 +1465,7 @@ class ExperienceController extends ChangeNotifier {
     _initializeNovas();
     _initializeQuasars();
     _initializeSingularities();
+    _initializeContinua();
     _emitPulse(force: true);
   }
 
@@ -1973,6 +2128,79 @@ class ExperienceController extends ChangeNotifier {
     _scheduleSingularityCollapse();
   }
 
+  void _initializeContinua() {
+    final stored = _preferences.getExperienceContinua();
+    final restored = stored
+        .map(ExperienceContinuum.fromEncoded)
+        .fold<Map<String, ExperienceContinuum>>(
+            <String, ExperienceContinuum>{}, (map, continuum) {
+      map[continuum.id] = continuum;
+      return map;
+    });
+    final defaults = <ExperienceContinuum>[
+      ExperienceContinuum(
+        id: 'continuum_gate',
+        title: 'Continuum Gate',
+        singularityIds: const ['singularity_nexus', 'singularity_core'],
+        flowItemIds: const <String>[],
+        harmonyHints: const [SceneMood.futuristic, SceneMood.serene],
+      ),
+      ExperienceContinuum(
+        id: 'continuum_harmonics',
+        title: 'Harmonic Continuum',
+        singularityIds: const ['singularity_core'],
+        flowItemIds: const <String>[],
+        harmonyHints: const [SceneMood.vibrant, SceneMood.earthy],
+      ),
+    ];
+    _continua
+      ..clear()
+      ..addAll(defaults.map((entry) {
+        final restoredEntry = restored[entry.id];
+        final flows = restoredEntry?.flowItemIds.isNotEmpty == true
+            ? restoredEntry!.flowItemIds
+            : _collectContinuumFlowItems(entry.singularityIds);
+        final density = restoredEntry?.density ??
+            _calculateContinuumDensity(entry.singularityIds);
+        final synergy = restoredEntry?.synergy ??
+            _calculateContinuumSynergy(entry.singularityIds);
+        final stability = restoredEntry?.stability ??
+            _calculateContinuumStability(entry.singularityIds);
+        final featured = restoredEntry?.featuredSingularityId ??
+            _suggestContinuumSingularity(entry.singularityIds);
+        return ExperienceContinuum(
+          id: entry.id,
+          title: entry.title,
+          singularityIds: entry.singularityIds,
+          flowItemIds: flows,
+          harmonyHints: entry.harmonyHints,
+          density: density,
+          synergy: synergy,
+          stability: stability,
+          lastFusion: restoredEntry?.lastFusion,
+          featuredSingularityId: featured,
+        );
+      }));
+    _syncContinua(persist: false);
+    final activeId = _preferences.getActiveContinuumId();
+    if (activeId != null) {
+      try {
+        _activeContinuum =
+            _continua.firstWhere((entry) => entry.id == activeId);
+      } catch (_) {
+        _activeContinuum = null;
+      }
+    }
+    if (_activeContinuum == null && _continua.isNotEmpty) {
+      _activeContinuum = _continua.first;
+    }
+    _persistContinua();
+    unawaited(
+      _preferences.setActiveContinuumId(_activeContinuum?.id),
+    );
+    _scheduleContinuumFusion();
+  }
+
   void _persistOrbits() {
     unawaited(
       _preferences.setExperienceOrbits(
@@ -2053,6 +2281,18 @@ class ExperienceController extends ChangeNotifier {
     unawaited(
       _preferences.setExperienceSingularities(
         _singularities.map((entry) => entry.encode()).toList(),
+      ),
+    );
+  }
+
+  void _persistContinua() {
+    if (_continua.isEmpty) {
+      unawaited(_preferences.clearExperienceContinua());
+      return;
+    }
+    unawaited(
+      _preferences.setExperienceContinua(
+        _continua.map((entry) => entry.encode()).toList(),
       ),
     );
   }
@@ -3179,6 +3419,257 @@ class ExperienceController extends ChangeNotifier {
     return bestId;
   }
 
+  List<String> _collectContinuumFlowItems(List<String> singularityIds) {
+    final seen = <String>{};
+    final items = <String>[];
+    for (final singularityId in singularityIds) {
+      ExperienceSingularity? singularity;
+      try {
+        singularity =
+            _singularities.firstWhere((entry) => entry.id == singularityId);
+      } catch (_) {
+        singularity = null;
+      }
+      if (singularity == null) {
+        continue;
+      }
+      for (final itemId in singularity.coreItemIds) {
+        if (seen.add(itemId)) {
+          items.add(itemId);
+        }
+        if (items.length >= 28) {
+          break;
+        }
+      }
+      if (items.length >= 28) {
+        break;
+      }
+      for (final quasarId in singularity.quasarIds) {
+        ExperienceQuasar? quasar;
+        try {
+          quasar = _quasars.firstWhere((entry) => entry.id == quasarId);
+        } catch (_) {
+          quasar = null;
+        }
+        if (quasar == null) {
+          continue;
+        }
+        for (final item in resolveQuasarItems(quasar)) {
+          if (seen.add(item.id)) {
+            items.add(item.id);
+          }
+          if (items.length >= 30) {
+            break;
+          }
+        }
+        if (items.length >= 30) {
+          break;
+        }
+      }
+    }
+    if (items.length < 24) {
+      for (final blueprint in _blueprints) {
+        for (final itemId in blueprint.relatedItemIds) {
+          if (seen.add(itemId)) {
+            items.add(itemId);
+          }
+          if (items.length >= 30) {
+            break;
+          }
+        }
+        if (items.length >= 30) {
+          break;
+        }
+      }
+    }
+    return items.take(30).toList();
+  }
+
+  double _calculateContinuumDensity(List<String> singularityIds) {
+    if (singularityIds.isEmpty) {
+      return 0;
+    }
+    final values = <double>[];
+    for (final singularityId in singularityIds) {
+      ExperienceSingularity? singularity;
+      try {
+        singularity =
+            _singularities.firstWhere((entry) => entry.id == singularityId);
+      } catch (_) {
+        singularity = null;
+      }
+      if (singularity == null) {
+        continue;
+      }
+      final gravity = singularity.gravity == 0
+          ? _calculateSingularityGravity(singularity.quasarIds)
+          : singularity.gravity;
+      final convergence = singularity.convergence == 0
+          ? _calculateSingularityConvergence(singularity.quasarIds)
+          : singularity.convergence;
+      values.add((gravity * 0.6 + convergence * 0.4).clamp(0, 1));
+    }
+    if (values.isEmpty) {
+      return 0;
+    }
+    final average =
+        values.reduce((value, element) => value + element) / values.length;
+    return average.clamp(0, 1);
+  }
+
+  double _calculateContinuumSynergy(List<String> singularityIds) {
+    if (singularityIds.isEmpty) {
+      return 0;
+    }
+    final stabilityValues = <double>[];
+    final moodHints = <SceneMood>{};
+    final blueprintScores = <double>[];
+    for (final singularityId in singularityIds) {
+      ExperienceSingularity? singularity;
+      try {
+        singularity =
+            _singularities.firstWhere((entry) => entry.id == singularityId);
+      } catch (_) {
+        singularity = null;
+      }
+      if (singularity == null) {
+        continue;
+      }
+      final equilibrium = singularity.equilibrium == 0
+          ? _calculateSingularityEquilibrium(singularity.quasarIds)
+          : singularity.equilibrium;
+      stabilityValues.add(equilibrium);
+      moodHints.addAll(singularity.anomalyHints);
+      for (final itemId in singularity.coreItemIds) {
+        try {
+          final blueprint = _blueprints.firstWhere(
+            (entry) => entry.relatedItemIds.contains(itemId),
+          );
+          blueprintScores.add(_calculateBlueprintCompletion(blueprint));
+        } catch (_) {
+          // ignore missing blueprint mapping
+        }
+      }
+    }
+    final stability = stabilityValues.isEmpty
+        ? 0
+        : stabilityValues.reduce((value, element) => value + element) /
+            stabilityValues.length;
+    final moodScore = moodHints.isEmpty ? 0 : (moodHints.length / 4).clamp(0, 1);
+    final completion = blueprintScores.isEmpty
+        ? 0
+        : blueprintScores.reduce((value, element) => value + element) /
+            blueprintScores.length;
+    return (stability * 0.5 + moodScore * 0.25 + completion * 0.25)
+        .clamp(0, 1);
+  }
+
+  double _calculateContinuumStability(List<String> singularityIds) {
+    if (singularityIds.isEmpty) {
+      return 0;
+    }
+    final constellationScore = _constellations.isEmpty
+        ? 0
+        : (_constellations.where((entry) => entry.energy > 0.4).length /
+                _constellations.length)
+            .clamp(0, 1);
+    final horizonScore = _horizons.isEmpty
+        ? 0
+        : (_horizons.where((entry) => entry.intensity > 0.4).length /
+                _horizons.length)
+            .clamp(0, 1);
+    final auroraScore = _auroras.isEmpty
+        ? 0
+        : (_auroras.where((entry) => entry.radiance > 0.4).length /
+                _auroras.length)
+            .clamp(0, 1);
+    final singularityScore = singularityIds.isEmpty
+        ? 0
+        : (singularityIds.length / (_singularities.isEmpty
+            ? singularityIds.length
+            : _singularities.length))
+            .clamp(0, 1);
+    return (constellationScore * 0.25 +
+            horizonScore * 0.25 +
+            auroraScore * 0.2 +
+            singularityScore * 0.3)
+        .clamp(0, 1);
+  }
+
+  SceneMood _resolveContinuumMood(ExperienceContinuum continuum) {
+    final featuredId = continuum.featuredSingularityId ??
+        (continuum.singularityIds.isNotEmpty
+            ? continuum.singularityIds.first
+            : null);
+    if (featuredId != null) {
+      try {
+        final singularity =
+            _singularities.firstWhere((entry) => entry.id == featuredId);
+        return _resolveSingularityMood(singularity);
+      } catch (_) {
+        // ignore fallback to hints
+      }
+    }
+    return continuum.harmonyHints.isNotEmpty
+        ? continuum.harmonyHints.first
+        : SceneMood.serene;
+  }
+
+  String _resolveContinuumBlueprintId(ExperienceContinuum continuum) {
+    final fallback =
+        _pinned?.id ?? (_blueprints.isNotEmpty ? _blueprints.first.id : 'bp_serenity');
+    final featuredId = continuum.featuredSingularityId ??
+        (continuum.singularityIds.isNotEmpty
+            ? continuum.singularityIds.first
+            : null);
+    if (featuredId == null) {
+      return fallback;
+    }
+    try {
+      final singularity =
+          _singularities.firstWhere((entry) => entry.id == featuredId);
+      return _resolveSingularityBlueprintId(singularity);
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  String? _suggestContinuumSingularity(List<String> singularityIds) {
+    String? bestId;
+    var bestScore = -1.0;
+    final now = DateTime.now();
+    for (final singularityId in singularityIds) {
+      ExperienceSingularity? singularity;
+      try {
+        singularity =
+            _singularities.firstWhere((entry) => entry.id == singularityId);
+      } catch (_) {
+        singularity = null;
+      }
+      if (singularity == null) {
+        continue;
+      }
+      final gravity = singularity.gravity == 0
+          ? _calculateSingularityGravity(singularity.quasarIds)
+          : singularity.gravity;
+      final equilibrium = singularity.equilibrium == 0
+          ? _calculateSingularityEquilibrium(singularity.quasarIds)
+          : singularity.equilibrium;
+      final recency = singularity.lastCollapse == null
+          ? 0.25
+          : (1 - (now.difference(singularity.lastCollapse!).inMinutes / 420)
+                  .clamp(0, 1)) *
+              0.3;
+      final score = (gravity * 0.4 + equilibrium * 0.35 + recency)
+          .clamp(0, 1);
+      if (score > bestScore) {
+        bestScore = score;
+        bestId = singularity.id;
+      }
+    }
+    return bestId;
+  }
+
   String? _suggestNovaNebula(List<String> nebulaIds) {
     String? bestId;
     var bestScore = -1.0;
@@ -3721,6 +4212,62 @@ class ExperienceController extends ChangeNotifier {
     if (changed) {
       _scheduleSingularityCollapse();
     }
+    _syncContinua(persist: persist);
+  }
+
+  void _syncContinua({bool persist = true}) {
+    if (_continua.isEmpty) {
+      if (persist) {
+        _persistContinua();
+        unawaited(_preferences.setActiveContinuumId(null));
+      }
+      return;
+    }
+    var changed = false;
+    for (var i = 0; i < _continua.length; i++) {
+      final base = _continua[i];
+      final flows = _collectContinuumFlowItems(base.singularityIds);
+      final density = _calculateContinuumDensity(base.singularityIds);
+      final synergy = _calculateContinuumSynergy(base.singularityIds);
+      final stability = _calculateContinuumStability(base.singularityIds);
+      final suggestion = base.featuredSingularityId ??
+          _suggestContinuumSingularity(base.singularityIds);
+      final flowChanged = !_listMatches(base.flowItemIds, flows);
+      final suggestionChanged =
+          suggestion != null && suggestion != base.featuredSingularityId;
+      if (flowChanged ||
+          (density - base.density).abs() > 0.001 ||
+          (synergy - base.synergy).abs() > 0.001 ||
+          (stability - base.stability).abs() > 0.001 ||
+          suggestionChanged) {
+        final updated = ExperienceContinuum(
+          id: base.id,
+          title: base.title,
+          singularityIds: base.singularityIds,
+          flowItemIds: flows,
+          harmonyHints: base.harmonyHints,
+          density: density,
+          synergy: synergy,
+          stability: stability,
+          lastFusion: base.lastFusion,
+          featuredSingularityId: suggestion ?? base.featuredSingularityId,
+        );
+        _continua[i] = updated;
+        if (_activeContinuum?.id == updated.id) {
+          _activeContinuum = updated;
+        }
+        changed = true;
+      }
+    }
+    if (persist && changed) {
+      _persistContinua();
+      unawaited(
+        _preferences.setActiveContinuumId(_activeContinuum?.id),
+      );
+    }
+    if (changed) {
+      _scheduleContinuumFusion();
+    }
   }
 
   void _syncAuroras({bool persist = true}) {
@@ -3904,6 +4451,7 @@ class ExperienceController extends ChangeNotifier {
     _novaTimer?.cancel();
     _quasarTimer?.cancel();
     _singularityTimer?.cancel();
+    _continuumTimer?.cancel();
     _catalogController.removeListener(_catalogListener);
     _showroomController.removeListener(_showroomListener);
     _signalController.close();

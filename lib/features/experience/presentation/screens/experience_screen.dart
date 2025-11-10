@@ -7,6 +7,7 @@ import '../../../../app/app_scope.dart';
 import '../../../../core/controllers/experience_controller.dart';
 import '../../../../core/models/experience_aurora.dart';
 import '../../../../core/models/experience_constellation.dart';
+import '../../../../core/models/experience_continuum.dart';
 import '../../../../core/models/experience_horizon.dart';
 import '../../../../core/models/experience_moment.dart';
 import '../../../../core/models/experience_nebula.dart';
@@ -69,6 +70,8 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
           final activeQuasar = _controller.activeQuasar;
           final singularities = _controller.singularities;
           final activeSingularity = _controller.activeSingularity;
+          final continua = _controller.continua;
+          final activeContinuum = _controller.activeContinuum;
           return CustomScrollView(
             padding: const EdgeInsets.only(bottom: 96),
             slivers: [
@@ -179,6 +182,18 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
                   child: _SingularityNexus(
                     singularities: singularities,
                     activeSingularity: activeSingularity,
+                    controller: _controller,
+                    localization: localization,
+                    onSelectItem: widget.onSelectItem,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+                  child: _ContinuumGate(
+                    continua: continua,
+                    activeContinuum: activeContinuum,
                     controller: _controller,
                     localization: localization,
                     onSelectItem: widget.onSelectItem,
@@ -2746,6 +2761,376 @@ class _SingularityEmptyState extends StatelessWidget {
   }
 }
 
+class _ContinuumGate extends StatelessWidget {
+  const _ContinuumGate({
+    required this.continua,
+    required this.activeContinuum,
+    required this.controller,
+    required this.localization,
+    required this.onSelectItem,
+  });
+
+  final List<ExperienceContinuum> continua;
+  final ExperienceContinuum? activeContinuum;
+  final ExperienceController controller;
+  final AppLocalizations localization;
+  final ValueChanged<CatalogItem> onSelectItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    localization.translate('experience_continua_title'),
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    localization.translate('experience_continua_subtitle'),
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.hintColor),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: continua.isEmpty
+                  ? null
+                  : () => controller.cycleContinuum(manual: true),
+              tooltip: localization.translate('experience_continuum_cycle'),
+              icon: const Icon(IconlyLight.activity),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (continua.isEmpty)
+          _ContinuumEmptyState(localization: localization)
+        else
+          SizedBox(
+            height: 292,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: continua.length,
+              itemBuilder: (context, index) {
+                final continuum = continua[index];
+                final isActive = activeContinuum?.id == continuum.id;
+                return _ContinuumCard(
+                  continuum: continuum,
+                  isActive: isActive,
+                  controller: controller,
+                  localization: localization,
+                  onSelectItem: onSelectItem,
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ContinuumCard extends StatelessWidget {
+  const _ContinuumCard({
+    required this.continuum,
+    required this.isActive,
+    required this.controller,
+    required this.localization,
+    required this.onSelectItem,
+  });
+
+  final ExperienceContinuum continuum;
+  final bool isActive;
+  final ExperienceController controller;
+  final AppLocalizations localization;
+  final ValueChanged<CatalogItem> onSelectItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final densityPercent = (continuum.density * 100).clamp(0, 100).toDouble();
+    final synergyPercent = (continuum.synergy * 100).clamp(0, 100).toDouble();
+    final stabilityPercent =
+        (continuum.stability * 100).clamp(0, 100).toDouble();
+    final items = controller.resolveContinuumItems(continuum);
+    ExperienceSingularity? featuredSingularity;
+    if (continuum.featuredSingularityId != null) {
+      try {
+        featuredSingularity = controller.singularities.firstWhere(
+          (entry) => entry.id == continuum.featuredSingularityId,
+        );
+      } catch (_) {
+        featuredSingularity = null;
+      }
+    }
+    final materialLocalizations = MaterialLocalizations.of(context);
+    final mediaQuery = MediaQuery.of(context);
+    final lastFusion = continuum.lastFusion;
+    final lastLabel = lastFusion == null
+        ? localization.translate('experience_continuum_last_never')
+        : '${localization.translate('experience_continuum_last')} '
+            '${materialLocalizations.formatMediumDate(lastFusion)} · '
+            '${materialLocalizations.formatTimeOfDay(',
+                TimeOfDay.fromDateTime(lastFusion),
+                alwaysUse24HourFormat: mediaQuery.alwaysUse24HourFormat,
+              )}';
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 360),
+      width: 340,
+      margin: const EdgeInsets.only(right: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: isActive
+              ? theme.colorScheme.tertiary
+              : theme.dividerColor.withOpacity(0.35),
+        ),
+        gradient: LinearGradient(
+          colors: isActive
+              ? [
+                  theme.colorScheme.tertiary.withOpacity(0.2),
+                  theme.colorScheme.primary.withOpacity(0.14),
+                ]
+              : [
+                  theme.colorScheme.surfaceVariant.withOpacity(0.1),
+                  theme.colorScheme.surfaceVariant.withOpacity(0.05),
+                ],
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(28),
+        onTap: () => controller.openContinuum(continuum, manual: true),
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          continuum.title,
+                          style: theme.textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        if (featuredSingularity != null) ...[
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Icon(
+                                IconlyBold.discovery,
+                                size: 18,
+                                color: theme.colorScheme.tertiary,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  featuredSingularity!.title,
+                                  style: theme.textTheme.bodySmall,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      _MetricPill(
+                        label:
+                            localization.translate('experience_continuum_density'),
+                        value: densityPercent,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(height: 8),
+                      _MetricPill(
+                        label:
+                            localization.translate('experience_continuum_synergy'),
+                        value: synergyPercent,
+                        color: theme.colorScheme.secondary,
+                      ),
+                      const SizedBox(height: 8),
+                      _MetricPill(
+                        label:
+                            localization.translate('experience_continuum_stability'),
+                        value: stabilityPercent,
+                        color: theme.colorScheme.tertiary,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                lastLabel,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.hintColor),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final crossAxisCount = constraints.maxWidth > 260 ? 3 : 2;
+                    return GridView.builder(
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 8,
+                        childAspectRatio: 3.2,
+                      ),
+                      itemCount: items.length > 6 ? 6 : items.length,
+                      itemBuilder: (context, index) {
+                        final item = items[index];
+                        return _ContinuumItemChip(
+                          item: item,
+                          onSelectItem: onSelectItem,
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ContinuumItemChip extends StatelessWidget {
+  const _ContinuumItemChip({required this.item, required this.onSelectItem});
+
+  final CatalogItem item;
+  final ValueChanged<CatalogItem> onSelectItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surface.withOpacity(0.72),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => onSelectItem(item),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 14,
+                backgroundImage: NetworkImage(item.imageUrl),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  item.title,
+                  style: theme.textTheme.bodySmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ContinuumEmptyState extends StatelessWidget {
+  const _ContinuumEmptyState({required this.localization});
+
+  final AppLocalizations localization;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: theme.dividerColor.withOpacity(0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            localization.translate('experience_continua_title'),
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            localization.translate('experience_continua_empty'),
+            style: theme.textTheme.bodyMedium?.copyWith(color: theme.hintColor),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricPill extends StatelessWidget {
+  const _MetricPill({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final double value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: color.withOpacity(0.12),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(color: color),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${value.toStringAsFixed(0)}%',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ConstellationEmptyState extends StatelessWidget {
   const _ConstellationEmptyState({required this.localization});
 
@@ -3552,6 +3937,10 @@ class _ChronicleSection extends StatelessWidget {
         return IconlyBold.star;
       case ExperienceMomentKind.quasar:
         return IconlyBold.discovery;
+      case ExperienceMomentKind.singularity:
+        return IconlyLight.lock;
+      case ExperienceMomentKind.continuum:
+        return IconlyLight.more_circle;
     }
   }
 
@@ -3581,6 +3970,8 @@ class _ChronicleSection extends StatelessWidget {
         return theme.colorScheme.tertiary;
       case ExperienceMomentKind.singularity:
         return theme.colorScheme.inversePrimary;
+      case ExperienceMomentKind.continuum:
+        return theme.colorScheme.onSurfaceVariant;
     }
   }
 
@@ -3610,6 +4001,8 @@ class _ChronicleSection extends StatelessWidget {
         return localization.translate('experience_moment_quasar');
       case ExperienceMomentKind.singularity:
         return localization.translate('experience_moment_singularity');
+      case ExperienceMomentKind.continuum:
+        return localization.translate('experience_moment_continuum');
     }
   }
 

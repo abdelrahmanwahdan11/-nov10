@@ -32,6 +32,9 @@ class AppPreferences {
   static const _experienceSingularitiesKey = 'experience_singularities';
   static const _experienceActiveSingularityKey =
       'experience_active_singularity';
+  static const _experienceContinuaKey = 'experience_continua';
+  static const _experienceActiveContinuumKey =
+      'experience_active_continuum';
 
   late final SharedPreferences _prefs;
 
@@ -351,6 +354,29 @@ class AppPreferences {
       await _prefs.remove(_experienceActiveSingularityKey);
     } else {
       await _prefs.setString(_experienceActiveSingularityKey, id);
+    }
+  }
+
+  List<String> getExperienceContinua() {
+    return _prefs.getStringList(_experienceContinuaKey) ?? <String>[];
+  }
+
+  Future<void> setExperienceContinua(List<String> continua) async {
+    await _prefs.setStringList(_experienceContinuaKey, continua);
+  }
+
+  Future<void> clearExperienceContinua() async {
+    await _prefs.remove(_experienceContinuaKey);
+  }
+
+  String? getActiveContinuumId() =>
+      _prefs.getString(_experienceActiveContinuumKey);
+
+  Future<void> setActiveContinuumId(String? id) async {
+    if (id == null) {
+      await _prefs.remove(_experienceActiveContinuumKey);
+    } else {
+      await _prefs.setString(_experienceActiveContinuumKey, id);
     }
   }
 }

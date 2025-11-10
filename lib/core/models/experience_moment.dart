@@ -15,6 +15,7 @@ enum ExperienceMomentKind {
   nova,
   quasar,
   singularity,
+  continuum,
 }
 
 class ExperienceMoment {
