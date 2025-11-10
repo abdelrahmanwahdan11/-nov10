@@ -1,0 +1,310 @@
+{
+  "prompt_title": "Family Wallet Flutter Super-App",
+  "goal": "Build a production-quality Flutter application that mirrors the provided family wallet UI screens while extending them into a full ecosystem covering onboarding, authentication, catalog management, comparisons, and personalization. Follow the specified design language precisely and use only the allowed dependencies.",
+  "language_support": {
+    "default_locale": "ar",
+    "supported_locales": ["ar", "en"],
+    "localization_package": "flutter_localizations",
+    "localization_notes": "Provide AR and EN ARB files for all strings. Mirror layout direction (RTL/LTR) automatically."
+  },
+  "theme_and_branding": {
+    "base_palette": {
+      "primary_options": ["#8A7CFF", "#A8E6CF", "#FFD3B6", "#FF8B94"],
+      "neutral_background": "#F5F4FA",
+      "card_colors": ["#DBE8D8", "#EADFFC", "#FCE7F0", "#FFF3D9"],
+      "dark_mode_background": "#101221",
+      "dark_mode_surface": "#181B2D"
+    },
+    "user_customization": {
+      "allow_primary_color_switch": true,
+      "persist_choice_with": "shared_preferences",
+      "provide_live_preview": true
+    },
+    "typography": {
+      "package": "google_fonts",
+      "families": {
+        "ar": "Cairo",
+        "en": "Nunito"
+      }
+    },
+    "iconography": {
+      "package": "iconly",
+      "usage": "Use Iconly Light for neutral states and Iconly Bold for primary CTA buttons"
+    }
+  },
+  "animation_strategy": {
+    "packages": ["flutter/animation"],
+    "principles": [
+      "Use AnimatedSwitcher, AnimatedPositioned, AnimatedOpacity for micro-interactions",
+      "Implement hero transitions between cards and detail modals",
+      "Onboarding story auto-plays using PageController with Timer-driven animations",
+      "Use staggered animations for card entrance and skeleton fade-ins",
+      "When images are tapped, animate expansion into a 3D-styled overlay using Transform and perspective"
+    ],
+    "skeleton_loading": "Provide shimmering skeleton placeholders for all list/card content while loading"
+  },
+  "architecture": {
+    "pattern": "Layered (presentation, application, domain, data-mock)",
+    "state_management": "Use ValueNotifier + ChangeNotifier + StreamController for partial rebuilds (no full page refresh)",
+    "storage": "shared_preferences for theme, onboarding completion, auth tokens (mocked)",
+    "network": "Use mock repositories returning Future-delayed data (no real backend)",
+    "pagination": {
+      "strategy": "Manual pagination with ScrollController listeners, requesting chunks of 10 items",
+      "pull_to_refresh": "RefreshIndicator wrapping every primary ScrollView"
+    }
+  },
+  "global_widgets": [
+    "PrimaryScaffold": "Handles AppBar, bottom navigation, adaptive padding, dark mode, and localized directionality",
+    "BottomNavBar": "Five-item nav with central floating action button style matching design",
+    "PrimaryCard": "Rounded card with configurable gradient, badge, CTA buttons, percentage indicator",
+    "Animated3DViewer": "Widget using Transform, AnimatedScale, and GestureDetector to present pseudo-3D product/media view",
+    "SkeletonBlock": "Configurable shimmer placeholder",
+    "StrengthMeter": "Password strength indicator with color-coded bars",
+    "ComparisonToggle": "Checkbox-like chip that feeds selected items into comparison panel",
+    "SearchBar": "Debounced search tied to catalog results",
+    "FilterSheet": "Modal bottom sheet with segmented filters and range sliders",
+    "AIHintButton": "Outlined button with icon and tooltip that will later connect to AI service",
+    "ExperiencePulseBanner": "Live bilingual ticker showing blueprint pulses and highlighting related items",
+    "FocusDeck": "Phase focus controller with elapsed timer, mood chip, and quick release stored via shared_preferences",
+    "ChronicleTimeline": "Horizontal timeline of stored moments (pulses, progress, reflections) with direct refocus actions",
+    "OrbitNavigator": "Horizontal orbit deck with intensity meter, manual/auto cycling, and quick item chips persisted via shared_preferences",
+    "ConstellationDeck": "Constellation weave displaying energy, synergy, anchor items, and align controls with local persistence",
+    "HorizonBridge": "Horizon bridges fusing constellations with coherence meters, intensity sweeps, blended mood chips, and shared_preferences state"
+  ],
+  "modules": [
+    {
+      "name": "onboarding",
+      "description": "Auto-playing story onboarding that showcases app benefits with progress dots and CTA",
+      "screens": [
+        {
+          "id": "onboarding_story",
+          "features": [
+            "Three slides derived from reference colors; auto-scroll every 4 seconds",
+            "Persistent controls: skip, next/back, dot indicators",
+            "Animated illustrations using 3D-style cards stacked with Transform",
+            "Call-to-action button leading to authentication flow",
+            "SharedPreferences flag to skip on subsequent launches"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "authentication",
+      "description": "Comprehensive auth flow (mocked) with password policies and guest access",
+      "screens": [
+        {
+          "id": "login_screen",
+          "features": [
+            "Email/phone input with validation",
+            "Password field with visibility toggle",
+            "Remember me toggle stored via shared_preferences",
+            "Guest login button that sets mock session",
+            "Link to password recovery"
+          ]
+        },
+        {
+          "id": "register_screen",
+          "features": [
+            "Multi-step form (personal info -> verification -> credentials)",
+            "Password strength meter using StrengthMeter widget with rules display",
+            "Terms agreement checkbox",
+            "Animated step transitions",
+            "Mock OTP verification modal"
+          ]
+        },
+        {
+          "id": "forgot_password",
+          "features": [
+            "Choice between email or phone recovery",
+            "OTP input fields with auto-advance",
+            "Reset password form with strength indicator",
+            "Success animation"
+          ]
+        },
+        {
+          "id": "two_factor",
+          "features": [
+            "Mock verification via code entry",
+            "Countdown timer animation",
+            "Resend button with disabled state"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "dashboard",
+      "description": "Home experience inspired by reference screens with cards, progress, and quick actions",
+      "screens": [
+        {
+          "id": "home_overview",
+          "features": [
+            "Welcome header with user avatar, greeting, and Iconly icons for notifications/settings",
+            "Auto-playing onboarding steps card carousel with progress percentage",
+            "Wallet summary cards (Spending, Savings, Allowance) following reference layout",
+            "Location sharing panel with map thumbnail placeholder and toggle",
+            "Family accounts list with send/request money buttons",
+            "Bottom navigation persistent across app",
+            "Pull-to-refresh to reload mock data",
+            "Paginated lists for activity feed and recommended actions"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "catalog",
+      "description": "Catalog of financial plans/items supporting search, filters, pagination, and comparisons",
+      "screens": [
+        {
+          "id": "catalog_grid",
+          "features": [
+            "SearchBar at top filtering across name, category, tags",
+            "Segmented control to switch between grid and list views",
+            "FilterSheet triggered via icon: sort by cost, allowance, popularity; range sliders",
+            "Each item card uses Animated3DViewer for hero image, quick stats, add-to-compare button",
+            "Infinite scroll pagination with loader skeletons",
+            "Pull-to-refresh resets to first page"
+          ]
+        },
+        {
+          "id": "comparison_board",
+          "features": [
+            "Pinned comparison bar showing selected items with remove chips",
+            "Detailed comparison table with animated column reveal",
+            "Option to highlight best metrics per row",
+            "AIHintButton to request smart suggestion (placeholder only)"
+          ]
+        },
+        {
+          "id": "item_detail",
+          "features": [
+            "Triggered by tapping catalog card",
+            "Image expands into top overlay with 3D flip animation",
+            "Second tap flips card to reveal extended description, benefits, and charts",
+            "Tabs for Overview, Transactions, Goals",
+            "Related items carousel with pagination",
+            "Button to add item to family member"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "experience_lab",
+      "description": "Neo Experience Lab orchestrating story-driven blueprints that sync catalog favorites with showroom moods",
+      "screens": [
+        {
+          "id": "experience_dashboard",
+          "features": [
+            "Pinned blueprint hero card with auto-progress bar and mood chip",
+            "ExperiencePulseBanner streaming pulses generated from favorites and showroom scenes (no external backend)",
+            "List of blueprints with expandable phases, per-phase progress controls, and pin/unpin actions",
+            "Phase tiles expose estimated minutes, focus tags, and action buttons to open immersive viewer",
+            "RefreshIndicator clears cached progress and regenerates localized pulses",
+            "Stream-based ticker animates when new signals are emitted",
+            "FocusDeck surfaces the active phase with elapsed timer, related catalog items, and release control persisted locally",
+            "ChronicleTimeline shows stored pulses/progress/reflection/orbit moments with bilingual labels and quick refocus shortcuts",
+            "OrbitNavigator cycles resonance orbits, exposes intensity metrics, and links to synced catalog items without backend calls",
+            "ConstellationDeck weaves orbit intensities into alignable constellations with energy gauges, synergy badges, and anchor chips saved in preferences",
+            "HorizonBridge presents cross-constellation narratives with intensity sweeps, coherence gauges, mood blend chips, and quick item launches stored locally",
+            "AuroraCascade synthesizes horizon bridges into luminous cascades with radiance/resonance meters, last-activation badges, and quick item chips persisted on-device",
+            "NebulaSymphony elevates aurora cascades into clarity/cohesion decks with spotlight blueprint, surge logging, and clickable item mosaics persisted locally",
+            "NovaAtelier fuses nebula surges into ignition suites with intensity/stability/brilliance gauges, featured nebula spotlights, and catalyst mosaics cached on-device",
+            "QuasarObservatory elevates nova ateliers into beaconed observatories with flare/steadiness/flux gauges, cached beacon mosaics, and manual cycle controls stored in preferences",
+            "SingularityNexus condenses quasar observatories into gravity/convergence/equilibrium cores with on-device collapse scheduling, featured quasar hints, and bilingual decks",
+            "ContinuumGate fuses singularity cores into density/synergy/stability flows with manual cycling, spotlighted singularities, and locally cached item mosaics"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "finance_tools",
+      "description": "Utilities for tracking spending, allowances, and sending money",
+      "screens": [
+        {
+          "id": "spending_insights",
+          "features": [
+            "Charts using CustomPaint to avoid extra packages",
+            "Skeletons while loading analytics",
+            "Filter chips for timeframe",
+            "Pull-to-refresh and manual pagination for transactions",
+            "Comparison toggle to contrast two members' spending"
+          ]
+        },
+        {
+          "id": "wallet_management",
+          "features": [
+            "Wallet balance hero card with add/send actions",
+            "Transaction timeline with lazy loading",
+            "Expandable family member cards with allowances and quick transfer",
+            "Toggle to show allowances in list or comparison view",
+            "AIHintButton for budgeting tips (placeholder)"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "profile_and_settings",
+      "description": "User profile, customization, notifications, and help",
+      "screens": [
+        {
+          "id": "profile_center",
+          "features": [
+            "Editable avatar with network image and fallback initials",
+            "List of linked family members with add/remove",
+            "Security section showing 2FA status, device list",
+            "Language switcher (ar/en) with immediate rebuild",
+            "Dark mode toggle and primary color picker"
+          ]
+        },
+        {
+          "id": "notifications",
+          "features": [
+            "Paginated notification feed with grouped sections",
+            "Swipe actions for mark-as-read/delete",
+            "Skeleton placeholders for first load"
+          ]
+        },
+        {
+          "id": "support_center",
+          "features": [
+            "FAQ accordion",
+            "Contact options (call, email placeholders)",
+            "AIHintButton describing upcoming AI assistant feature",
+            "Troubleshooting tips cards with animations"
+          ]
+        }
+      ]
+    }
+  ],
+  "data_models": [
+    "UserProfile",
+    "FamilyMember",
+    "WalletAccount",
+    "Transaction",
+    "CatalogItem",
+    "ComparisonSet",
+    "ExperienceHorizon",
+    "ExperienceAurora",
+    "ExperienceNebula",
+    "ExperienceNova",
+    "ExperienceContinuum",
+    "NotificationItem",
+    "OnboardingSlide"
+  ],
+  "mock_data_strategy": {
+    "source": "In-memory JSON maps per locale",
+    "loading_simulation": "Use Future.delayed to simulate network",
+    "error_states": "Randomly throw exceptions in debug mode to test skeleton + retry UI"
+  },
+  "testing_and_quality": {
+    "widget_tests": "Cover onboarding auto-play, password strength logic, pagination state",
+    "golden_tests": "Validate light/dark and AR/EN layouts for primary cards",
+    "accessibility": "Ensure minimum contrast ratios, support screen readers with semantics"
+  },
+  "delivery_notes": [
+    "Do not integrate any external backend or networking library",
+    "All images must use NetworkImage with placeholders",
+    "Ensure every scrollable surface has RefreshIndicator",
+    "Implement manual pagination and maintain state between tabs",
+    "Respect RTL when locale is Arabic and mirror transitions appropriately"
+  ]
+}

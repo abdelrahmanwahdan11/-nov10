@@ -1,0 +1,396 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+
+class AppLocalizations {
+  AppLocalizations(this.locale);
+
+  final Locale locale;
+
+  static const _localizedStrings = <String, Map<String, String>>{
+    'en': {
+      'app_title': 'Neo Catalog',
+      'onboarding_title_1': 'Craft Your Space',
+      'onboarding_body_1': 'Discover immersive furniture selections tailored to your mood.',
+      'onboarding_title_2': 'Immersive Story',
+      'onboarding_body_2': 'Swipe through cinematic stories with smooth animations.',
+      'onboarding_title_3': 'Smart Comparison',
+      'onboarding_body_3': 'Compare items instantly and explore AI assisted insights.',
+      'get_started': 'Get Started',
+      'login': 'Log In',
+      'signup': 'Create Account',
+      'guest': 'Continue as Guest',
+      'email': 'Email',
+      'password': 'Password',
+      'forgot_password': 'Forgot Password?',
+      'reset_password': 'Reset Password',
+      'confirm_password': 'Confirm Password',
+      'password_strength': 'Password strength',
+      'strength_weak': 'Weak',
+      'strength_medium': 'Medium',
+      'strength_strong': 'Strong',
+      'catalog': 'Catalog',
+      'experience': 'Experience',
+      'search_hint': 'Search everything...',
+      'filters': 'Filters',
+      'favorites_only': 'Favorites only',
+      'compare': 'Compare',
+      'ai_soon': 'AI insights coming soon',
+      'refresh': 'Pull to refresh',
+      'dark_mode': 'Dark Mode',
+      'primary_color': 'Primary Color',
+      'language': 'Language',
+      'settings': 'Settings',
+      'logout': 'Log out',
+      'skip': 'Skip',
+      'characters': 'characters',
+      'uppercase': 'Uppercase letter',
+      'numbers': 'Numbers',
+      'symbols': 'Symbols',
+      'favorites_active': 'Showing favorites',
+      'showroom': 'Showroom',
+      'showroom_moods': 'Immersive moods',
+      'mood_all': 'All moods',
+      'start_auto_cycle': 'Start auto cycle',
+      'stop_auto_cycle': 'Stop auto cycle',
+      'scene_story_title': 'Scene narrative',
+      'featured_items': 'Featured items',
+      'view_scene_items': 'View items',
+      'experience_pin_prompt': 'Pin an experience journey to keep it in focus.',
+      'experience_pin_description':
+          'Choose any blueprint below to anchor its phases and sync with catalog insights.',
+      'unpin': 'Unpin',
+      'pinned': 'Pinned',
+      'pin': 'Pin',
+      'experience_preview': 'Preview items',
+      'experience_phases': 'Experience phases',
+      'experience_mark': 'Mark progress',
+      'minutes_short': 'min',
+      'experience_timeline_empty': 'No pulses yet, start by adding favorites.',
+      'experience_focus_start': 'Focus phase',
+      'experience_focus_release': 'Release focus',
+      'experience_focus_empty': 'Activate focus on a phase to unlock deep insights.',
+      'experience_focus_elapsed': 'Focused for',
+      'experience_chronicle_title': 'Experience chronicle',
+      'experience_chronicle_empty': 'Complete phases or trigger pulses to populate the chronicle.',
+      'experience_moment_pulse': 'Pulse insight',
+      'experience_moment_progress': 'Progress marker',
+      'experience_moment_focus': 'Focus locked',
+      'experience_moment_reflection': 'Reflection',
+      'experience_moment_orbit': 'Orbit sync',
+      'experience_moment_constellation': 'Constellation weave',
+      'experience_orbits_title': 'Orbit navigator',
+      'experience_orbits_subtitle':
+          'Cycle immersive journeys and surface synced items.',
+      'experience_orbit_cycle': 'Cycle orbit',
+      'experience_orbit_intensity': 'Orbit intensity',
+      'experience_orbit_last': 'Last resonance',
+      'experience_orbit_last_never': 'Not activated yet',
+      'experience_orbits_empty':
+          'Advance a phase or add favorites to generate dynamic orbits.',
+      'experience_constellations_title': 'Constellation weave',
+      'experience_constellations_subtitle':
+          'Fuse journeys into device-side constellations.',
+      'experience_constellation_cycle': 'Cycle constellation',
+      'experience_constellation_energy': 'Constellation energy',
+      'experience_constellation_synergy': 'Alignment score',
+      'experience_constellation_align': 'Align now',
+      'experience_constellation_last': 'Last weave',
+      'experience_constellation_last_never': 'No weave yet',
+      'experience_constellations_empty':
+          'Grow orbit progress and favorites to unlock constellations.',
+      'experience_horizons_title': 'Horizon bridges',
+      'experience_horizons_subtitle':
+          'Thread constellations into evolving on-device narratives.',
+      'experience_horizon_cycle': 'Cycle horizon',
+      'experience_horizon_intensity': 'Horizon intensity',
+      'experience_horizon_coherence': 'Coherence',
+      'experience_horizon_last': 'Last bridge',
+      'experience_horizon_last_never': 'Not bridged yet',
+      'experience_horizons_empty':
+          'Align more constellations to surface narrative bridges.',
+      'experience_moment_horizon': 'Horizon bridge',
+      'experience_auroras_title': 'Aurora cascade',
+      'experience_auroras_subtitle':
+          'Blend horizons into luminous on-device story bursts.',
+      'experience_aurora_cycle': 'Cycle aurora',
+      'experience_aurora_radiance': 'Aurora radiance',
+      'experience_aurora_resonance': 'Resonance',
+      'experience_aurora_last': 'Last cascade',
+      'experience_aurora_last_never': 'Not cascaded yet',
+      'experience_auroras_empty':
+          'Activate more horizons to unlock aurora cascades.',
+      'experience_moment_aurora': 'Aurora cascade',
+      'experience_nebulas_title': 'Nebula symphony',
+      'experience_nebulas_subtitle':
+          'Bind cascades into story veils with clarity and cohesion meters.',
+      'experience_nebula_cycle': 'Cycle nebula',
+      'experience_nebula_luminosity': 'Nebula luminosity',
+      'experience_nebula_cohesion': 'Cohesion',
+      'experience_nebula_clarity': 'Clarity',
+      'experience_nebula_last': 'Last surge',
+      'experience_nebula_last_never': 'Not surged yet',
+      'experience_nebulas_empty':
+          'Ignite more aurora cascades to unlock nebula symphonies.',
+      'experience_nebula_spotlight': 'Spotlight blueprint',
+      'experience_moment_nebula': 'Nebula surge',
+      'experience_novas_title': 'Nova atelier',
+      'experience_novas_subtitle':
+          'Fuse nebula symphonies into on-device ignition suites.',
+      'experience_nova_cycle': 'Cycle nova',
+      'experience_nova_intensity': 'Nova intensity',
+      'experience_nova_stability': 'Stability',
+      'experience_nova_brilliance': 'Brilliance',
+      'experience_nova_last': 'Last ignition',
+      'experience_nova_last_never': 'Not ignited yet',
+      'experience_novas_empty':
+          'Ignite additional nebulae to compose nova ateliers.',
+      'experience_moment_nova': 'Nova ignition',
+      'experience_quasars_title': 'Quasar observatory',
+      'experience_quasars_subtitle':
+          'Stitch nova ateliers into beaconed hyper stories.',
+      'experience_quasar_cycle': 'Cycle quasar',
+      'experience_quasar_flare': 'Quasar flare',
+      'experience_quasar_steadiness': 'Steadiness',
+      'experience_quasar_flux': 'Flux',
+      'experience_quasar_last': 'Last beacon',
+      'experience_quasar_last_never': 'No beacon yet',
+      'experience_quasars_empty':
+          'Trigger more nova ignitions to unlock quasar observatories.',
+      'experience_moment_quasar': 'Quasar beacon',
+      'experience_singularities_title': 'Singularity nexus',
+      'experience_singularities_subtitle':
+          'Collapse quasar beacons into locally fused singularity cores.',
+      'experience_singularity_cycle': 'Collapse singularity',
+      'experience_singularity_gravity': 'Gravity',
+      'experience_singularity_convergence': 'Convergence',
+      'experience_singularity_equilibrium': 'Equilibrium',
+      'experience_singularity_last': 'Last collapse',
+      'experience_singularity_last_never': 'No collapse yet',
+      'experience_singularities_empty':
+          'Illuminate additional quasar beacons to unlock singularity cores.',
+      'experience_moment_singularity': 'Singularity collapse',
+      'experience_continua_title': 'Continuum gate',
+      'experience_continua_subtitle':
+          'Fuse singularity cores into on-device continuum flows.',
+      'experience_continuum_cycle': 'Cycle continuum',
+      'experience_continuum_density': 'Density',
+      'experience_continuum_synergy': 'Synergy',
+      'experience_continuum_stability': 'Stability',
+      'experience_continuum_last': 'Last fusion',
+      'experience_continuum_last_never': 'No fusion yet',
+      'experience_continua_empty':
+          'Collapse more singularities to unlock continuum flows.',
+      'experience_moment_continuum': 'Continuum fusion',
+    },
+    'ar': {
+      'app_title': 'كتالوج نيو',
+      'onboarding_title_1': 'اصنع مساحتك',
+      'onboarding_body_1': 'اكتشف مجموعات الأثاث الغامرة بحسب مزاجك.',
+      'onboarding_title_2': 'قصة تفاعلية',
+      'onboarding_body_2': 'تصفح القصص السينمائية مع انتقالات سلسة.',
+      'onboarding_title_3': 'مقارنة ذكية',
+      'onboarding_body_3': 'قارن العناصر فوراً واستكشف رؤى الذكاء الاصطناعي.',
+      'get_started': 'ابدأ الآن',
+      'login': 'تسجيل الدخول',
+      'signup': 'إنشاء حساب',
+      'guest': 'الدخول كضيف',
+      'email': 'البريد الإلكتروني',
+      'password': 'كلمة المرور',
+      'forgot_password': 'نسيت كلمة المرور؟',
+      'reset_password': 'إعادة التعيين',
+      'confirm_password': 'تأكيد كلمة المرور',
+      'password_strength': 'قوة كلمة المرور',
+      'strength_weak': 'ضعيفة',
+      'strength_medium': 'متوسطة',
+      'strength_strong': 'قوية',
+      'catalog': 'الكتالوج',
+      'experience': 'التجربة',
+      'search_hint': 'ابحث في كل شيء...',
+      'filters': 'الفلاتر',
+      'favorites_only': 'المفضلة فقط',
+      'compare': 'مقارنة',
+      'ai_soon': 'ميزة الذكاء الاصطناعي قريباً',
+      'refresh': 'اسحب للتحديث',
+      'dark_mode': 'الوضع الليلي',
+      'primary_color': 'اللون الرئيسي',
+      'language': 'اللغة',
+      'settings': 'الإعدادات',
+      'logout': 'تسجيل الخروج',
+      'skip': 'تخطي',
+      'characters': 'حروف',
+      'uppercase': 'حرف كبير',
+      'numbers': 'أرقام',
+      'symbols': 'رموز',
+      'favorites_active': 'عرض العناصر المفضلة',
+      'showroom': 'صالة العرض',
+      'showroom_moods': 'مزاجات العرض الغامرة',
+      'mood_all': 'كل المزاجات',
+      'start_auto_cycle': 'بدء العرض التلقائي',
+      'stop_auto_cycle': 'إيقاف العرض التلقائي',
+      'scene_story_title': 'حكاية المشهد',
+      'featured_items': 'عناصر مميزة',
+      'view_scene_items': 'استعراض العناصر',
+      'experience_pin_prompt': 'ثبّت رحلة التجربة لتحافظ عليها في الواجهة.',
+      'experience_pin_description':
+          'اختر أي مخطط أدناه لربط مراحله ومزامنته مع رؤى الكتالوج.',
+      'unpin': 'إلغاء التثبيت',
+      'pinned': 'مُثبّت',
+      'pin': 'تثبيت',
+      'experience_preview': 'معاينة العناصر',
+      'experience_phases': 'مراحل التجربة',
+      'experience_mark': 'تحديث التقدم',
+      'minutes_short': 'دقيقة',
+      'experience_timeline_empty': 'لا توجد تحديثات بعد، ابدأ بإضافة عناصر مفضلة.',
+      'experience_focus_start': 'تركيز المرحلة',
+      'experience_focus_release': 'إنهاء التركيز',
+      'experience_focus_empty': 'فعّل التركيز على مرحلة لتحصل على رؤى أعمق.',
+      'experience_focus_elapsed': 'مدة التركيز',
+      'experience_chronicle_title': 'سجل التجربة',
+      'experience_chronicle_empty': 'أكمل المراحل أو فعّل النبضات لتمتلئ السجلات.',
+      'experience_moment_pulse': 'نبضة ملهمة',
+      'experience_moment_progress': 'علامة تقدم',
+      'experience_moment_focus': 'تركيز مثبت',
+      'experience_moment_reflection': 'لحظة تأمل',
+      'experience_moment_orbit': 'تزامن المدار',
+      'experience_moment_constellation': 'نسيج الكوكبة',
+      'experience_orbits_title': 'ملاحة المدارات',
+      'experience_orbits_subtitle':
+          'تدوير الرحلات الغامرة وإظهار العناصر المتزامنة.',
+      'experience_orbit_cycle': 'تدوير المدار',
+      'experience_orbit_intensity': 'شدة المدار',
+      'experience_orbit_last': 'آخر تردد',
+      'experience_orbit_last_never': 'لم يتم التفعيل بعد',
+      'experience_orbits_empty':
+          'أكمل مرحلة أو أضف مفضلة لتوليد المدارات الديناميكية.',
+      'experience_constellations_title': 'نسيج الكوكبات',
+      'experience_constellations_subtitle':
+          'ادمج الرحلات في كوكبات متزامنة على الجهاز.',
+      'experience_constellation_cycle': 'تبديل الكوكبة',
+      'experience_constellation_energy': 'طاقة الكوكبة',
+      'experience_constellation_synergy': 'مؤشر التآلف',
+      'experience_constellation_align': 'محاذاة الآن',
+      'experience_constellation_last': 'آخر نسيج',
+      'experience_constellation_last_never': 'لم يتم نسج أي كوكبة بعد',
+      'experience_constellations_empty':
+          'طوّر المدارات والمفضلة لفتح الكوكبات المتقدمة.',
+      'experience_horizons_title': 'جسور الأفق',
+      'experience_horizons_subtitle':
+          'انسج الكوكبات في حكايات متجددة داخل الجهاز.',
+      'experience_horizon_cycle': 'تبديل الجسر',
+      'experience_horizon_intensity': 'شدة الجسر',
+      'experience_horizon_coherence': 'الانسجام',
+      'experience_horizon_last': 'آخر جسر',
+      'experience_horizon_last_never': 'لم يتم فتح أي جسر بعد',
+      'experience_horizons_empty':
+          'نسّق المزيد من الكوكبات لإظهار جسور الحكاية.',
+      'experience_moment_horizon': 'جسر الأفق',
+      'experience_auroras_title': 'تدفق الشفق',
+      'experience_auroras_subtitle':
+          'ادمج الجسور في ومضات قصصية مضيئة محلياً.',
+      'experience_aurora_cycle': 'تدوير الشفق',
+      'experience_aurora_radiance': 'سطوع الشفق',
+      'experience_aurora_resonance': 'التناغم',
+      'experience_aurora_last': 'آخر تدفق',
+      'experience_aurora_last_never': 'لم يحدث التدفق بعد',
+      'experience_auroras_empty':
+          'قم بتنشيط المزيد من الجسور لإظهار تدفقات الشفق.',
+      'experience_moment_aurora': 'تدفق الشفق',
+      'experience_nebulas_title': 'سمفونية السديم',
+      'experience_nebulas_subtitle':
+          'اربط تدفقات الشفق في ستائر قصصية مع مقاييس الوضوح والتماسك.',
+      'experience_nebula_cycle': 'تدوير السديم',
+      'experience_nebula_luminosity': 'سطوع السديم',
+      'experience_nebula_cohesion': 'التماسك',
+      'experience_nebula_clarity': 'الوضوح',
+      'experience_nebula_last': 'آخر اندفاع',
+      'experience_nebula_last_never': 'لم يحدث الاندفاع بعد',
+      'experience_nebulas_empty':
+          'فعّل المزيد من تدفقات الشفق لفتح سمفونيات السديم.',
+      'experience_nebula_spotlight': 'المخطط المضاء',
+      'experience_moment_nebula': 'اندفاع السديم',
+      'experience_novas_title': 'محترف النوفا',
+      'experience_novas_subtitle':
+          'ادمج سمفونيات السديم في أجنحة إشعال محلية.',
+      'experience_nova_cycle': 'تبديل النوفا',
+      'experience_nova_intensity': 'شدة النوفا',
+      'experience_nova_stability': 'الاستقرار',
+      'experience_nova_brilliance': 'التألق',
+      'experience_nova_last': 'آخر إشعال',
+      'experience_nova_last_never': 'لم يتم الإشعال بعد',
+      'experience_novas_empty':
+          'أشعل المزيد من السدم لصناعة محترف النوفا المتقدم.',
+      'experience_moment_nova': 'إشعال النوفا',
+      'experience_quasars_title': 'مرصد الكوازار',
+      'experience_quasars_subtitle':
+          'مزج محترفات النوفا في حكايات منارة متجددة.',
+      'experience_quasar_cycle': 'تدوير الكوازار',
+      'experience_quasar_flare': 'وميض الكوازار',
+      'experience_quasar_steadiness': 'الثبات',
+      'experience_quasar_flux': 'التدفق',
+      'experience_quasar_last': 'آخر منارة',
+      'experience_quasar_last_never': 'لم تُفعَّل أي منارة بعد',
+      'experience_quasars_empty':
+          'أشعل المزيد من محترفات النوفا لفتح مراقبة الكوازار.',
+      'experience_moment_quasar': 'منارة كوازار',
+      'experience_singularities_title': 'شبكة التفرد',
+      'experience_singularities_subtitle':
+          'ادمج منارات الكوازار في نوى تفرد محلية متزامنة.',
+      'experience_singularity_cycle': 'طي التفرد',
+      'experience_singularity_gravity': 'الجاذبية',
+      'experience_singularity_convergence': 'الالتحام',
+      'experience_singularity_equilibrium': 'الاتزان',
+      'experience_singularity_last': 'آخر طي',
+      'experience_singularity_last_never': 'لم يحدث أي طي بعد',
+      'experience_singularities_empty':
+          'قم بتنشيط منارات كوازار إضافية لفتح نوى التفرد.',
+      'experience_moment_singularity': 'طي التفرد',
+      'experience_continua_title': 'بوابة المتصل',
+      'experience_continua_subtitle':
+          'ادمج نوى التفرد في تدفقات متصلة على الجهاز.',
+      'experience_continuum_cycle': 'تدوير المتصل',
+      'experience_continuum_density': 'الكثافة',
+      'experience_continuum_synergy': 'التآزر',
+      'experience_continuum_stability': 'الاستقرار',
+      'experience_continuum_last': 'آخر اندماج',
+      'experience_continuum_last_never': 'لم يندمج بعد',
+      'experience_continua_empty':
+          'ادمج نوى إضافية لفتح تدفقات المتصل.',
+      'experience_moment_continuum': 'اندماج المتصل',
+    },
+  };
+
+  static AppLocalizations of(BuildContext context) {
+    return Localizations.of<AppLocalizations>(context, AppLocalizations)!;
+  }
+
+  String translate(String key) {
+    final languageCode = locale.languageCode;
+    return _localizedStrings[languageCode]?[key] ??
+        _localizedStrings['en']![key] ??
+        key;
+  }
+
+  static const LocalizationsDelegate<AppLocalizations> delegate =
+      _AppLocalizationsDelegate();
+
+  static const supportedLocales = <Locale>[
+    Locale('en'),
+    Locale('ar'),
+  ];
+}
+
+class _AppLocalizationsDelegate
+    extends LocalizationsDelegate<AppLocalizations> {
+  const _AppLocalizationsDelegate();
+
+  @override
+  bool isSupported(Locale locale) => ['en', 'ar'].contains(locale.languageCode);
+
+  @override
+  Future<AppLocalizations> load(Locale locale) {
+    return SynchronousFuture<AppLocalizations>(AppLocalizations(locale));
+  }
+
+  @override
+  bool shouldReload(LocalizationsDelegate<AppLocalizations> old) => false;
+}
